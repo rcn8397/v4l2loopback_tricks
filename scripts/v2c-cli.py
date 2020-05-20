@@ -35,11 +35,18 @@ class v2cConsole( cmd.Cmd ):
         '''
         print( line )
 
+    def help_list( self ):
+        print( '\n'.join( [ 'list',
+                            'List media source(s) loaded' ] ) )
     def do_load( self, line ):
         '''
         Load media source(s)
         '''
         print( line )
+
+    def help_load( self ):
+        print( '\n'.join( [ 'load',
+                            'Load media source(s)' ] ) )
 
     def do_next( self, line ):
         '''
@@ -47,11 +54,19 @@ class v2cConsole( cmd.Cmd ):
         '''
         print( line )
 
+    def help_next( self ):
+        print( '\n'.join( [ 'next',
+                            'Make next source the active source' ] ) )
+
     def do_stream( self, line ):
         '''
         Stream media to v4l2loopback device
         '''
         print( line )
+
+    def help_stream( self ):
+        print( '\n'.join( [ 'stream',
+                            'Stream media to v4l2loopback device' ] ) )
 
     def do_stop( self, line ):
         '''
@@ -59,17 +74,26 @@ class v2cConsole( cmd.Cmd ):
         '''
         print( line )
 
+    def help_stop( self ):
+        print( '\n'.join( [ 'stop', 'Stops the active stream' ] ) )
+
     def do_q( self, line ):
         '''
         Exit loop
         '''
         return True
 
+    def help_q( self ):
+        print( '\n'.join( [ 'q', 'Exits program' ] ) )
+
     def do_quit( self, line ):
         '''
         Exit loop
         '''
         return True
+
+    def help_quit( self ):
+        print( '\n'.join( [ 'quit', 'Exits program' ] ) )
 
     #----------------------
     # cmd member overloads
