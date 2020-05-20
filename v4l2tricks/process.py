@@ -42,7 +42,7 @@ class Subprocess( object ):
         self._proc.kill()
 
     def dump( self ):
-        for line in self._stdout:
+        for line in self.readline:
             print( line )
 
 
