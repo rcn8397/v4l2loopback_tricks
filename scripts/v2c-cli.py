@@ -24,11 +24,22 @@ def fil_stream(args):
     except AssertionError as e:
         stream.dump()
 
+class StateModes( object ):
+    STOPPED = 0
+    PLAYING = 1
+    
 # Console controller
 class v2cConsole( cmd.Cmd ):
     '''
     Simple command processor for streaming media to v4l2loopback device
     '''
+    active = None
+    prompt_tmpl = '{0}:{1}\n(!>)'
+    prompt = '(!>)'
+
+    def update_prompt( self, stream ):
+        print( stream )
+    
     def do_list( self, line ):
         '''
         List media sources loaded
@@ -63,6 +74,13 @@ class v2cConsole( cmd.Cmd ):
         Stream media to v4l2loopback device
         '''
         print( line )
+
+    def complete_stream( self, text, line, begidx, endidx ):
+        if not text:
+            completions = self._loaded[:]
+        else:
+            completions = [ l for l in self._loaded if l.startswith( text ) ]
+        return completions
 
     def help_stream( self ):
         print( '\n'.join( [ 'stream',
@@ -103,12 +121,21 @@ class v2cConsole( cmd.Cmd ):
         Setup the environment
         '''
         print( 'Preloop called' )
+        self._loaded = [ '1', '2']
 
     def postloop( self ):
         '''
         Clean up the environment
         '''
         print( 'Postloop called' )
+
+    def precmd(self, line):
+        print( 'precmd(%s)' % line ) 
+        return cmd.Cmd.precmd(self, line)
+
+    def postcmd( self, stop, line ):
+        print( 'postcmd(%s,%s)' % ( stop, line ) )
+        return cmd.Cmd.postcmd(self, stop, line)
 
     def do_EOF( self, line ):
         '''
