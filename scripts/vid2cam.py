@@ -15,7 +15,7 @@ def fil_stream(args):
         if args.verbose:
             print( stream.readline )
 
-            
+
 # Stream a list of media files to device
 def dir_stream( args ):
     print( args )
@@ -28,21 +28,21 @@ def dir_stream( args ):
         for source in found:
             stream = stream_media( source, args.out )
             while stream.alive:
-                sys.stdout.write( '.' )
                 if args.verbose:
                     print( stream.readline )
+
         if not args.loop:
             break
     print( 'Finished' )
 
-    
+
 # Standard biolerplate to call the main() function to begin the program
 if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser( description='Stream a video to v4l2 loopback device' )
 
     # Common parameters
-    parser.add_argument( '-l', '--loop', 
+    parser.add_argument( '-l', '--loop',
                          help   = 'Loop indefinitely.',
                          action = 'store_true' )
     parser.add_argument( '-v', '--verbose',
@@ -51,7 +51,7 @@ if __name__ == '__main__':
 
     # Create subparser
     subparsers = parser.add_subparsers( help='Sub-commands' )
-    
+
     #-------------------------
     # Single Media File
     #-------------------------
@@ -61,7 +61,7 @@ if __name__ == '__main__':
     parser_fil.add_argument( '-o', '--out',
                              help = 'Device to stream to ("/dev/video1")',
                              default = '/dev/video1' )
-    
+
     parser_fil.set_defaults( func = fil_stream )
 
     #-------------------------
