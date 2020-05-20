@@ -3,7 +3,7 @@
 """
 from .process import Process
 
-def stream_media( fname, dev ='/dev/video1', verbose = True ):
+def stream_media( fname, dev ='/dev/video1' ):
     '''
     Stream the video <fname> to <dev> (defaults to '/dev/video1')
 
