@@ -29,16 +29,69 @@ class v2cConsole( cmd.Cmd ):
     '''
     Simple command processor for streaming media to v4l2loopback device
     '''
-
     def do_list( self, line ):
+        '''
+        List media sources loaded
+        '''
         print( line )
+
+    def do_load( self, line ):
+        '''
+        Load media source(s)
+        '''
+        print( line )
+
+    def do_next( self, line ):
+        '''
+        Make next source the active source
+        '''
+        print( line )
+
+    def do_stream( self, line ):
+        '''
+        Stream media to v4l2loopback device
+        '''
+        print( line )
+
+    def do_stop( self, line ):
+        '''
+        Stop active stream
+        '''
+        print( line )
+
+    def do_q( self, line ):
+        '''
+        Exit loop
+        '''
+        return True
+
+    def do_quit( self, line ):
+        '''
+        Exit loop
+        '''
+        return True
+
+    #----------------------
+    # cmd member overloads
+    #----------------------
+    def preloop( self ):
+        '''
+        Setup the environment
+        '''
+        print( 'Preloop called' )
+
+    def postloop( self ):
+        '''
+        Clean up the environment
+        '''
+        print( 'Postloop called' )
 
     def do_EOF( self, line ):
         '''
         Exit cleanly when EOF is received
         '''
         return True
-    
+
 
 def main( args ):
     '''
