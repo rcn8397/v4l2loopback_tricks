@@ -1,35 +1,54 @@
 # -*- coding: utf-8 -*-
 """Subprocess - tools
 """
-from subprocess import Popen, PIPE
+from subprocess import Popen, PIPE,STDOUT
 import shlex
 
 class Subprocess( object ):
     '''
     Subprocess object
     '''
-    def __init__( self, cmd = [ 'echo', 'hello world' ] ):
+    def __init__( self, cmd = [ 'echo', 'hello world' ], block = True ):
         super( Subprocess, self ).__init__()
         self._cmd = cmd
         self._stdout = []
-        self._proc = Popen( cmd, stdout=PIPE, bufsize=1 )
-        with self._proc.stdout:
-            for line in iter( self._proc.stdout.readline, b'' ):
-                self._stdout.append( line )
-        self._proc.wait()
+        self._output = ''
+        self._proc = Popen( cmd,
+                            stdout             = PIPE,
+                            stderr             = STDOUT,
+                            shell              = False,
+                            encoding           = 'utf-8',
+                            universal_newlines = True,
+                            bufsize            = 1 )
+        if block:
+            with self._proc.stdout:
+                for line in iter( self._proc.stdout.readline, b'' ):
+                    self._stdout.append( line )
+                self._proc.wait()
 
-    def output( self ):
-        for line in self._stdout:
-            yield line
+    @property
+    def readline( self ):
+        return self._proc.stdout.readline()
+
+    def read( self, bufsize = 80 ):
+        self._output += self._proc.stdout.read( bufsize )
+
+    @property
+    def alive( self ):
+        alive = self._proc.poll() == None
+        return alive
+
+    def stop( self ):
+        self._proc.kill()
 
     def dump( self ):
         for line in self._stdout:
             print( line )
-            
+
 
 class Process( Subprocess ):
     '''
     Simple Subprocess interface
     '''
-    def __init__( self, cmd = 'echo "hello world"' ):
-        super( Process, self ).__init__( shlex.split( cmd ) )
+    def __init__( self, cmd = 'echo "hello world"', block = True ):
+        super( Process, self ).__init__( shlex.split( cmd ), block )

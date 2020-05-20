@@ -10,7 +10,5 @@ def stream_media( fname, dev ='/dev/video1', verbose = True ):
     Notes:  Per the producer section of the v4l2loopback wiki.
     '''
     cmd = 'ffmpeg -re -i "{0}" -f v4l2 "{1}"'
-    p = Process( cmd.format( fname, dev ) )
-    if verbose:
-        for line in p.output():
-            print( line )
+    stream = Process( cmd.format( fname, dev ), False )
+    return stream

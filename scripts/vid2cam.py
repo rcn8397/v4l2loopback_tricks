@@ -7,9 +7,14 @@ from v4l2tricks.stream  import stream_media
 
 # Main
 def main(args):
-    stream_media( args.source, args.out, verbose = False )
-    
-    
+    stream = stream_media( args.source, args.out, verbose = False )
+    print( 'Streaming: {0}'.format( stream.alive ) )
+    while stream.alive:
+        if args.verbose:
+            print( stream.readline )
+
+
+
 # Standard biolerplate to call the main() function to begin the program
 if __name__ == '__main__':
     import argparse
