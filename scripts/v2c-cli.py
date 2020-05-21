@@ -24,22 +24,60 @@ def fil_stream(args):
     except AssertionError as e:
         stream.dump()
 
-class StateModes( object ):
+class AppMode( object ):
     STOPPED = 0
     PLAYING = 1
-    
+    modes = { STOPPED : 'Stopped',
+             PLAYING : 'Playing' }
+    def __init__( self, mode = STOPPED ):
+        super( AppMode, self ).__init__()
+        self._mode = mode
+
+    @staticmethod
+    def to_str( mode ):
+        try:
+            s = AppMode.modes[ mode ]
+        except Exception as e:
+            s = None
+        return s
+
+    def __str__( self ):
+        return AppMode.to_str( self.mode )
+
+    @property
+    def mode( self ):
+        return self._mode
+
+    @mode.setter
+    def mode( self, new_mode ):
+        self._mode = new_mode
+
 # Console controller
 class v2cConsole( cmd.Cmd ):
     '''
     Simple command processor for streaming media to v4l2loopback device
     '''
-    active = None
-    prompt_tmpl = '{0}:{1}\n(!>)'
-    prompt = '(!>)'
+    active      = None
+    state       = AppMode()
+    queued      = None
+    stream      = None
+    prompt_tmpl = '([ {0} ]{1})\n(!>)'
+    prompt      = '(!>)'
 
-    def update_prompt( self, stream ):
-        print( stream )
-    
+    # Helpers and procedures
+    def update_state( self ):
+        self.state.mode = AppMode.STOPPED
+        if self.stream is not None and self.Stream.alive:
+            self.state.mode = AppMode.PLAYING
+
+    def update_prompt( self ):
+        fname = ''
+        if self.queued is not None:
+            fname = self.queued
+        self.prompt = self.prompt_tmpl.format( str( self.state ),
+                                               fname )
+
+    # Menu/Commands
     def do_list( self, line ):
         '''
         List media sources loaded
@@ -130,11 +168,15 @@ class v2cConsole( cmd.Cmd ):
         print( 'Postloop called' )
 
     def precmd(self, line):
-        print( 'precmd(%s)' % line ) 
+        print( 'precmd(%s)' % line )
+        self.update_state()
+        self.update_prompt()
         return cmd.Cmd.precmd(self, line)
 
     def postcmd( self, stop, line ):
         print( 'postcmd(%s,%s)' % ( stop, line ) )
+        self.update_state()
+        self.update_prompt()
         return cmd.Cmd.postcmd(self, stop, line)
 
     def do_EOF( self, line ):
