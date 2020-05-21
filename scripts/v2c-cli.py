@@ -167,23 +167,26 @@ class v2cConsole( cmd.Cmd ):
         '''
         Stream media to v4l2loopback device
         '''
-        print( 'Starting Stream for {0}'.format( line ) )
-        loaded  = list( self.loaded )
-        sources = [ os.path.basename( s ) for s in loaded ]
-        try:
-            index = sources.index( line )
-        except ValueError as e:
-            index = None
+        if self.state.mode == AppMode.PLAYING:
+            print( 'Stream already started' )
+        else:
+            print( 'Starting Stream for {0}'.format( line ) )
+            loaded  = list( self.loaded )
+            sources = [ os.path.basename( s ) for s in loaded ]
+            try:
+                index = sources.index( line )
+            except ValueError as e:
+                index = None
 
-        self.active = index
+            self.active = index
 
-        try:
-            source = loaded[ index ]
-        except ValueError as e:
-            source = None
+            try:
+                source = loaded[ index ]
+            except ValueError as e:
+                source = None
 
-        print( 'Source: {0}'.format( source ) )
-        self.stream = stream_media( source, self.sink )
+            print( 'Source: {0}'.format( source ) )
+            self.stream = stream_media( source, self.sink )
 
     def complete_stream( self, text, line, begidx, endidx ):
         loaded = list( self.loaded )
