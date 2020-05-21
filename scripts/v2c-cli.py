@@ -61,6 +61,7 @@ class v2cConsole( cmd.Cmd ):
     state       = AppMode()
     queued      = None
     stream      = None
+    load_path   = '.'
     prompt_tmpl = '([ {0} ]{1})\n(!>)'
     prompt      = '(!>)'
 
@@ -91,7 +92,17 @@ class v2cConsole( cmd.Cmd ):
         '''
         Load media source(s)
         '''
-        print( line )
+        print( 'Loading {0}'.format( line ) )
+
+    def complete_load( self, text, line, begidx, endidx ):
+        _,path = line.split( 'load ' )
+        path = os.path.expanduser( path )
+        if os.path.exists( path ):
+              completions = fsutil.list_dir( path )
+        else:
+            dlist = fsutil.list_dir( os.path.dirname( path ) )
+            completions = [ n for n in dlist if n.startswith( text ) ]
+        return completions
 
     def help_load( self ):
         print( '\n'.join( [ 'load',
@@ -168,13 +179,11 @@ class v2cConsole( cmd.Cmd ):
         print( 'Postloop called' )
 
     def precmd(self, line):
-        print( 'precmd(%s)' % line )
         self.update_state()
         self.update_prompt()
         return cmd.Cmd.precmd(self, line)
 
     def postcmd( self, stop, line ):
-        print( 'postcmd(%s,%s)' % ( stop, line ) )
         self.update_state()
         self.update_prompt()
         return cmd.Cmd.postcmd(self, stop, line)

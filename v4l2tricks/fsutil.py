@@ -16,3 +16,14 @@ def find( path, patterns ):
                  match = os.path.join( root, filename )
                  matches.append( match )
      return matches
+
+# Attempt to get a list of a filesystem subtree from a string
+def list_dir( path = None ):
+    dirlist = []
+    if path is None:
+        path = '.'
+    try:
+        dirlist = os.listdir( path )
+    except Exception as e:
+        pass
+    return dirlist
