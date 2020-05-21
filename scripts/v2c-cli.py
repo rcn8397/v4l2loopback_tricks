@@ -15,15 +15,6 @@ def get_media( path ):
     media_types = containers.extensions()
     return fsutil.find( args.path, media_types )
 
-# Stream a media files to device
-def fil_stream(args):
-    stream = stream_media( args.source, args.out )
-    print( 'Streaming: {0}'.format( stream.alive ) )
-    try:
-        assert( stream.alive )
-    except AssertionError as e:
-        stream.dump()
-
 class AppMode( object ):
     STOPPED = 0
     PLAYING = 1
@@ -61,14 +52,36 @@ class v2cConsole( cmd.Cmd ):
     state       = AppMode()
     queued      = None
     stream      = None
-    load_path   = '.'
-    prompt_tmpl = '([ {0} ]{1})\n(!>)'
-    prompt      = '(!>)'
+    sink        = '/dev/video0'
+    loaded      = set()
+    prompt_tmpl = '([ {0} : {1} ]{2})\n(!>)'
+    prompt      = prompt_tmpl.format( str( state ), sink, '' )
 
     # Helpers and procedures
+    def load_sources( self, path ):
+        containers  = MediaContainers()
+        media_types = containers.extensions()
+
+        found = None
+        pre_load = len( self.loaded )
+        if os.path.exists( path ):
+            found = fsutil.find( path, media_types )
+            self.loaded.update( found )
+
+        if found is not None:
+            print( 'Loaded:' )
+            for i, fname in enumerate( self.loaded ):
+                print( '[{0}]: {1}'.format( i, fname ) )
+        print( 'Finished!' )
+        num_found = len( found )
+        post_load = len( self.loaded )
+        total_loaded = post_load - pre_load
+        print( 'Found {0}, new media loaded {1}'.format( num_found,
+                                                         total_loaded ) )
+
     def update_state( self ):
         self.state.mode = AppMode.STOPPED
-        if self.stream is not None and self.Stream.alive:
+        if self.stream is not None and self.stream.alive:
             self.state.mode = AppMode.PLAYING
 
     def update_prompt( self ):
@@ -76,14 +89,25 @@ class v2cConsole( cmd.Cmd ):
         if self.queued is not None:
             fname = self.queued
         self.prompt = self.prompt_tmpl.format( str( self.state ),
+                                               self.sink,
                                                fname )
+
+    def update_sink( self, sink ):
+        if os.path.exists( sink ) and '/dev/video' in sink:
+            self.sink = sink
+            print( 'Sink set to {0}'.format( sink ) )
+        else:
+            print( 'Could not set sink to {0}'.format( sink ) )
+
 
     # Menu/Commands
     def do_list( self, line ):
         '''
         List media sources loaded
         '''
-        print( line )
+        loaded = list( self.loaded )
+        for i, source in enumerate( loaded ):
+            print( '[{0}]: {1}'.format( i, source ) )
 
     def help_list( self ):
         print( '\n'.join( [ 'list',
@@ -92,7 +116,9 @@ class v2cConsole( cmd.Cmd ):
         '''
         Load media source(s)
         '''
-        print( 'Loading {0}'.format( line ) )
+        print( 'Loading all media sources @ [{0}]'.format( line ) )
+        path = os.path.expanduser( line )
+        self.load_sources( path )
 
     def complete_load( self, text, line, begidx, endidx ):
         _,path = line.split( 'load ' )
@@ -117,18 +143,60 @@ class v2cConsole( cmd.Cmd ):
     def help_next( self ):
         print( '\n'.join( [ 'next',
                             'Make next source the active source' ] ) )
+    def do_sink( self, line ):
+        '''
+        Set the device sink
+        '''
+        self.update_sink( line )
+
+    def help_sink( self ):
+        print( '\n'.join( [ 'sink',
+                            'Device sink [{0}'.format( self.sink ) ] ) )
+
+    def complete_sink( self, text, line, begidx, endidx ):
+        _,path = line.split( 'sink ' )
+        path = os.path.expanduser( path )
+        if os.path.exists( path ):
+              completions = fsutil.list_dir( path )
+        else:
+            dlist = fsutil.list_dir( os.path.dirname( path ) )
+            completions = [ n for n in dlist if n.startswith( text ) ]
+        return completions
 
     def do_stream( self, line ):
         '''
         Stream media to v4l2loopback device
         '''
-        print( line )
+        print( 'Starting Stream for {0}'.format( line ) )
+        loaded  = list( self.loaded )
+        sources = [ os.path.basename( s ) for s in loaded ]
+        try:
+            index = sources.index( line )
+        except ValueError as e:
+            index = None
+
+        self.active = index
+
+        try:
+            source = loaded[ index ]
+        except ValueError as e:
+            source = None
+
+        print( 'Source: {0}'.format( source ) )
+        self.stream = stream_media( source, self.sink )
 
     def complete_stream( self, text, line, begidx, endidx ):
+        loaded = list( self.loaded )
+        sources = [ os.path.basename( s ) for s in loaded ]
+
+
         if not text:
-            completions = self._loaded[:]
+            completions = sources[:]
         else:
-            completions = [ l for l in self._loaded if l.startswith( text ) ]
+            completions = [ s
+                            for s in sources
+                            if s.startswith(text)
+            ]
         return completions
 
     def help_stream( self ):
@@ -140,6 +208,9 @@ class v2cConsole( cmd.Cmd ):
         Stop active stream
         '''
         print( line )
+        if self.stream.alive:
+            print( 'Stopping Stream' )
+            self.stream.stop()
 
     def help_stop( self ):
         print( '\n'.join( [ 'stop', 'Stops the active stream' ] ) )
@@ -170,7 +241,8 @@ class v2cConsole( cmd.Cmd ):
         Setup the environment
         '''
         print( 'Preloop called' )
-        self._loaded = [ '1', '2']
+        self.update_state()
+        self.update_prompt()
 
     def postloop( self ):
         '''
@@ -199,8 +271,12 @@ def main( args ):
     '''
     Main entry point
     '''
-    print( args )
-    v2cConsole().cmdloop()
+    console = v2cConsole()
+    if args.source is not None:
+        console.load_sources( args.source )
+
+    console.update_sink( args.out )
+    console.cmdloop()
 
 
 # Standard biolerplate to call the main() function to begin the program
@@ -216,11 +292,12 @@ if __name__ == '__main__':
                          help   = 'Increase verbosity',
                          action ='store_true' )
 
-    parser.add_argument( 'source',
-                             help = 'Source to stream' )
+    parser.add_argument( '-s', '--source',
+                         help = 'Source to stream',
+                         default = None )
     parser.add_argument( '-o', '--out',
-                         help = 'Device to stream to ("/dev/video1")',
-                         default = '/dev/video1' )
+                         help = 'Device to stream to ("/dev/video0")',
+                         default = '/dev/video0' )
 
     # Parse the arguments
     args = parser.parse_args()
