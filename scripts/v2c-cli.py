@@ -8,6 +8,14 @@ from v4l2tricks.supported import MediaContainers
 from v4l2tricks           import fsutil
 
 import cmd
+import pdb
+def line2index( line ):
+    index = None
+    try:
+        index = int( line )
+    except NameError as e:
+        pass
+    return index
 
 # Get media from filesystem subtree
 def get_media( path ):
@@ -118,6 +126,9 @@ class v2cConsole( cmd.Cmd ):
         '''
         print( 'Loading all media sources @ [{0}]'.format( line ) )
         path = os.path.expanduser( line )
+        if not os.path.exists( path ):
+            self.help_load()
+            return
         self.load_sources( path )
 
     def complete_load( self, text, line, begidx, endidx ):
@@ -131,14 +142,40 @@ class v2cConsole( cmd.Cmd ):
         return completions
 
     def help_load( self ):
-        print( '\n'.join( [ 'load',
-                            'Load media source(s)' ] ) )
+        print( '\n'.join( [ 'load <path>',
+                            'Load media source(s) @ <path>' ] ) )
+
+    def do_n( self, line ):
+        self.do_next( line )
 
     def do_next( self, line ):
         '''
         Make next source the active source
         '''
         print( line )
+        loaded  = list( self.loaded )
+        num_loaded = len( loaded )
+
+        if self.active is None:
+            self.active = 0
+        else:
+            self.active += 1
+
+        if self.active >= num_loaded:
+            self.active = 0
+
+        try:
+            source = loaded[ self.active ]
+        except ValueError as e:
+            source = None
+
+        self.do_stop('Stop')
+        print( 'Source: {0}'.format( source ) )
+        self.stream = stream_media( source, self.sink )
+
+
+    def help_n( self ):
+        self.help_next()
 
     def help_next( self ):
         print( '\n'.join( [ 'next',
@@ -170,13 +207,18 @@ class v2cConsole( cmd.Cmd ):
         if self.state.mode == AppMode.PLAYING:
             print( 'Stream already started' )
         else:
-            print( 'Starting Stream for {0}'.format( line ) )
             loaded  = list( self.loaded )
             sources = [ os.path.basename( s ) for s in loaded ]
-            try:
-                index = sources.index( line )
-            except ValueError as e:
-                index = None
+
+            index = line2index( line )
+            if index is None:
+                print( 'Starting Stream for {0}'.format( line ) )
+                try:
+                    index = sources.index( line )
+                except ValueError as e:
+                    index = None
+            else:
+                print( 'Starting Stream @ {0}'.format( index ) )
 
             self.active = index
 
@@ -210,7 +252,10 @@ class v2cConsole( cmd.Cmd ):
         '''
         Stop active stream
         '''
-        print( line )
+        if self.stream is None:
+            print( 'Nothing currently Streaming' )
+            return
+
         if self.stream.alive:
             print( 'Stopping Stream' )
             self.stream.stop()
@@ -252,6 +297,7 @@ class v2cConsole( cmd.Cmd ):
         Clean up the environment
         '''
         print( 'Postloop called' )
+        self.do_stop( 'Exit' )
 
     def precmd(self, line):
         self.update_state()
@@ -267,6 +313,7 @@ class v2cConsole( cmd.Cmd ):
         '''
         Exit cleanly when EOF is received
         '''
+        print( 'EOF' )
         return True
 
 

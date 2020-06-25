@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Subprocess - tools
 """
-from subprocess import Popen, PIPE,STDOUT
+from subprocess import Popen, PIPE,STDOUT,DEVNULL
 import shlex
 
 class Subprocess( object ):
@@ -13,8 +13,14 @@ class Subprocess( object ):
         self._cmd = cmd
         self._stdout = []
         self._output = ''
+
+        if block:
+            mode = PIPE
+        else:
+            mode = DEVNULL
+            
         self._proc = Popen( cmd,
-                            stdout             = PIPE,
+                            stdout             = mode,
                             stderr             = STDOUT,
                             shell              = False,
                             encoding           = 'utf-8',
