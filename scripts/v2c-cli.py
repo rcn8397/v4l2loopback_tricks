@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 import os
 import sys
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -60,7 +60,7 @@ class v2cConsole( cmd.Cmd ):
     state       = AppMode()
     queued      = None
     stream      = None
-    sink        = '/dev/video0'
+    sink        = '/dev/video20'
     loaded      = set()
     prompt_tmpl = '([ {0} : {1} ]{2})\n(!>)'
     prompt      = prompt_tmpl.format( str( state ), sink, '' )
@@ -346,8 +346,8 @@ if __name__ == '__main__':
                          help = 'Source to stream',
                          default = None )
     parser.add_argument( '-o', '--out',
-                         help = 'Device to stream to ("/dev/video0")',
-                         default = '/dev/video0' )
+                         help = 'Device to stream to ("/dev/video20")',
+                         default = '/dev/video20' )
 
     # Parse the arguments
     args = parser.parse_args()

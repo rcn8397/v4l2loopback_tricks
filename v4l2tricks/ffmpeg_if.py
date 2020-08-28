@@ -4,9 +4,50 @@
 """
 import os
 import sys
-import pdb
-
 import ffmpeg
+
+class StreamProcess( object ):
+    '''
+    StreamProcess
+    '''
+    def __init__( self, fname, device = '/dev/video20', verbose = True ):
+        super( StreamProcess, self ).__init__()
+        self._verbose = verbose
+        if verbose: print( 'Attempting to Stream: {} to {}'.format( fname, device ) )
+        width, height, num_frames = probe( fname )
+        if verbose: print( '{0}: w={1}, h={2}'.format( fname, width, height ) )
+        inp = ffmpeg.input( fname, re=None, ).output( device, f='v4l2' )
+        if verbose: print( inp.compile() )
+
+        process = (
+            inp.run_async( pipe_stdout      = True,
+                           pipe_stdin       = True,
+                           quiet            = False,#True,
+                           overwrite_output = True,
+            )
+        )
+        self._proc = process
+    
+    @property
+    def readline( self ):
+        return self._proc.stdout.readline()
+
+    def read( self, bufsize = 80 ):
+        self._output += self._proc.stdout.read( bufsize )
+
+    @property
+    def alive( self ):
+        alive = self._proc.poll() == None
+        return alive
+
+    def stop( self ):
+        self._proc.kill()
+
+    def dump( self ):
+        for line in self.readline:
+            print( line )
+
+
 
 def generate_thumbnail(in_filename, out_filename, time=0.1, width=120):
     '''
@@ -34,7 +75,7 @@ def probe( fname ):
     num_frames = int(video_info['nb_frames'])
     return width, height, num_frames
 
-def stream_media( fname, dev = '/dev/video20' ):
+def test_stream_media( fname, dev = '/dev/video20' ):
     '''
     'ffmpeg -re -i "{0}" -f v4l2 "{1}"'
 
@@ -50,15 +91,16 @@ def stream_media( fname, dev = '/dev/video20' ):
     process = (
         inp.run_async( pipe_stdout = True, pipe_stdin = False)
         )
+    pdb.set_trace()
     out, err = process.communicate()
 
-def create_test_src(path='./testsrc.mp4'):
+def create_test_src(path='./testsrc.mp4', duration = 30):
     '''
     ffmpeg -f lavfi -i testsrc -t 30 -pix_fmt yuv420p testsrc.m4p
     '''
     process = (
         ffmpeg
-        .input( 'testsrc', f='lavfi', t= 30  )
+        .input( 'testsrc', f='lavfi', t= duration  )
         .output( path, pix_fmt='yuv420p' )
         .run_async( pipe_stdout = True, pipe_stdin = False)
         )
@@ -68,8 +110,7 @@ def create_test_src(path='./testsrc.mp4'):
 def main():
     print( "hello" )
     testsrc = './testsrc.mp4'
-    create_test_src(testsrc)
-    stream_media( testsrc )
+    test_stream_media( testsrc )
 
 
 # Standard biolerplate to call the main() function to begin the program

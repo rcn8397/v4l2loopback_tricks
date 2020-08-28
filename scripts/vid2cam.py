@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 import os
 import sys
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -59,8 +59,8 @@ if __name__ == '__main__':
     parser_fil.add_argument( 'source',
                              help = 'Source to stream' )
     parser_fil.add_argument( '-o', '--out',
-                             help = 'Device to stream to ("/dev/video1")',
-                             default = '/dev/video1' )
+                             help = 'Device to stream to ("/dev/video20")',
+                             default = '/dev/video20' )
 
     parser_fil.set_defaults( func = fil_stream )
 
@@ -70,8 +70,8 @@ if __name__ == '__main__':
     parser_dir = subparsers.add_parser( 'dir', help = 'Stream files in directory subtree to device' )
     parser_dir.add_argument( 'path', help = 'Path to media files.' )
     parser_dir.add_argument( '-o', '--out',
-                             help = 'Device to stream to ("/dev/video1")',
-                             default = '/dev/video1' )
+                             help = 'Device to stream to ("/dev/video20")',
+                             default = '/dev/video20' )
     parser_dir.set_defaults( func = dir_stream )
 
     #-------------------------
