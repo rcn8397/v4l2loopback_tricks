@@ -6,7 +6,6 @@ import os
 import sys
 import ffmpeg
 from threading import Thread
-import pdb
 
 try:
     from queue import Queue, Empty
@@ -46,10 +45,8 @@ https://github.com/kkroening/ffmpeg-python/issues/156#issuecomment-449553709
                            overwrite_output = True,
             )
         )
-        print type( process )
         self._proc = process
-
-        self._t    = Thread( target = enqueue_output, args = (process, self._q ) )
+        self._t    = Thread(target=enqueue_output, args=(process, self._q ))
         self._t.deamon = True # Thread must die with the program
         self._t.start()
 
