@@ -83,7 +83,7 @@ class OverlayStreamProcess( StreamProcess ):
 
         # Create ffmpeg interface process
         print( 'Building up sources' )
-        base = ffmpeg.input( fname )# re=None )
+        base = ffmpeg.input( fname, re=None )
         logo = ffmpeg.input( overlay )
         print( 'Combining inputs' )
         inp  = (
