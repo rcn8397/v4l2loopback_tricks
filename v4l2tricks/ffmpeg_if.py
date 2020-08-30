@@ -77,7 +77,33 @@ https://github.com/kkroening/ffmpeg-python/issues/156#issuecomment-449553709
         for line in self.readline:
             print( line )
 
+class OverlayStreamProcess( StreamProcess ):
+    def __init__( self, fname, overlay, device = '/dev/video20', verbose = True ):
+        self._q = Queue()
 
+        # Create ffmpeg interface process
+        print( 'Building up sources' )
+        base = ffmpeg.input( fname )# re=None )
+        logo = ffmpeg.input( overlay )
+        print( 'Combining inputs' )
+        inp  = (
+            ffmpeg
+            .filter( [base, logo], 'overlay', 10, 10 )
+            .output( device, f='v4l2' )
+            )
+        if verbose: print( inp.compile() )
+
+        process = (
+            inp.run_async( pipe_stdout      = False,
+                           pipe_stdin       = False,
+                           quiet            = False,
+                           overwrite_output = True,
+            )
+        )
+        self._proc = process
+        self._t    = Thread(target=enqueue_output, args=(process, self._q ))
+        self._t.deamon = True # Thread must die with the program
+        self._t.start()
 
 def generate_thumbnail(in_filename, out_filename, time=0.1, width=120):
     '''
@@ -136,7 +162,7 @@ def create_sine_src(path='./sinewav.mp4', freq = 1000, duration = 5 ):
         .overwrite_ouput()
         )
     out, err = process.communicate()
-    
+
 def create_test_src(path='./testsrc.mp4', duration = 30):
     '''
     ffmpeg -f lavfi -i testsrc -t 30 -pix_fmt yuv420p testsrc.m4p

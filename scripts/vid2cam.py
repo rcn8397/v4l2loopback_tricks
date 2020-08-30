@@ -3,13 +3,16 @@ import os
 import sys
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from v4l2tricks.stream    import stream_media
+from v4l2tricks.stream    import stream_media, overlay_stream
 from v4l2tricks.supported import MediaContainers
 from v4l2tricks           import fsutil
 
 # Stream a media files to device
 def fil_stream(args):
-    stream = stream_media( args.source, args.out )
+    if args.overlay is None:
+        stream = stream_media( args.source, args.out )
+    else:
+        stream = overlay_stream( args.source, args.overlay, args.out )
     print( 'Streaming: {0}'.format( stream.alive ) )
     while stream.alive:
         if args.verbose:
@@ -61,7 +64,8 @@ if __name__ == '__main__':
     parser_fil.add_argument( '-o', '--out',
                              help = 'Device to stream to ("/dev/video20")',
                              default = '/dev/video20' )
-
+    parser_fil.add_argument( '--overlay',
+                             help = 'Overlay input', default = None  )
     parser_fil.set_defaults( func = fil_stream )
 
     #-------------------------
@@ -72,6 +76,7 @@ if __name__ == '__main__':
     parser_dir.add_argument( '-o', '--out',
                              help = 'Device to stream to ("/dev/video20")',
                              default = '/dev/video20' )
+
     parser_dir.set_defaults( func = dir_stream )
 
     #-------------------------
