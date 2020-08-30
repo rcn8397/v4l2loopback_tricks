@@ -124,6 +124,19 @@ def test_stream_media( fname, dev = '/dev/video20' ):
     pdb.set_trace()
     out, err = process.communicate()
 
+def create_sine_src(path='./sinewav.mp4', freq = 1000, duration = 5 ):
+    '''
+    '''
+    src = "sine=frequency={}:duration={}".format( freq, duration )
+    process=(
+        ffmpeg
+        .input( src, f='lavfi' )
+        .output( path )
+        .run_async( pipe_stdout = True, pipe_stdin = False )
+        .overwrite_ouput()
+        )
+    out, err = process.communicate()
+    
 def create_test_src(path='./testsrc.mp4', duration = 30):
     '''
     ffmpeg -f lavfi -i testsrc -t 30 -pix_fmt yuv420p testsrc.m4p
@@ -140,7 +153,9 @@ def create_test_src(path='./testsrc.mp4', duration = 30):
 def main():
     print( "hello" )
     testsrc = './testsrc.mp4'
-    test_stream_media( testsrc )
+    sinesrc = './sinesrc.mp4'
+    create_sine_src( sinesrc )
+    test_stream_media( sinesrc )
 
 
 # Standard biolerplate to call the main() function to begin the program
