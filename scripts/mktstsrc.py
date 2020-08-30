@@ -19,8 +19,8 @@ if __name__ == '__main__':
     # Common parameters
     parser.add_argument( '-p', '--path', help='Output path (defaults: ./testsrc.mp4)', default = './testsrc.mp4' )
     parser.add_argument( '-t', '--time-duration',
-                         help   = 'Duration of the test source',
-                         default = 30 )
+                         help   = 'Duration of the test source(defaults: 6 min)',
+                         default = 600 )
     parser.add_argument( '-v', '--verbose',
                          help   = 'Increase verbosity',
                          action ='store_true' )
