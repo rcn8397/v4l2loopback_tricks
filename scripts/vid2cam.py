@@ -3,9 +3,31 @@ import os
 import sys
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from v4l2tricks.stream    import stream_media, overlay_stream
+from v4l2tricks.stream    import stream_media, overlay_stream, desktop_stream
 from v4l2tricks.supported import MediaContainers
 from v4l2tricks           import fsutil
+
+
+# Stream the desktop to device
+def dsk_stream( args ):
+    display = ':1'
+    if args.display is None:
+        try:
+            display = os.environ[ 'DISPLAY' ]
+        except KeyError as e:
+            print( 'Could not detect DISPLAY variable (normally :0 or :1)' )
+            pass
+
+    stream = desktop_stream( args.x,
+                             args.y,
+                             args.width,
+                             args.height,
+                             display,
+                             args.out )
+    while stream.alive:
+        if args.verbose:
+            line = stream.readline
+            if line is not None: print( line )
 
 # Stream a media files to device
 def fil_stream(args):
@@ -78,6 +100,27 @@ if __name__ == '__main__':
                              default = '/dev/video20' )
 
     parser_dir.set_defaults( func = dir_stream )
+
+
+    #-------------------------
+    # Desktop of media files
+    #-------------------------
+    parser_dsk = subparsers.add_parser( 'dsk', help = 'Stream desktop at x, y with size of sizex, sizey to device' )
+    parser_dsk.add_argument( '-x', help = 'X position of the desktop', default = 0 )
+    parser_dsk.add_argument( '-y', help = 'Y position of the desktop', default = 0 )
+    parser_dsk.add_argument( '--width',
+                             help = 'Width of the desktop to stream', default = 640 )
+    parser_dsk.add_argument( '--height',
+                             help = 'Height of the desktop to stream', default = 480 )
+    parser_dsk.add_argument( '-d', '--display',
+                             help = 'Display ID', default = None )
+    parser_dsk.add_argument( '-o', '--out',
+                             help = 'Device to stream to ("/dev/video20")',
+                             default = '/dev/video20' )
+
+    parser_dsk.set_defaults( func = dsk_stream )
+
+    
 
     #-------------------------
     # Help

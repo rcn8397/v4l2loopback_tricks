@@ -22,8 +22,10 @@ def enqueue_output( process, queue ):
 class StreamProcess( object ):
     '''
     StreamProcess
+    
+    https://github.com/kkroening/ffmpeg-python/issues/156#issuecomment-449553709
 
-https://github.com/kkroening/ffmpeg-python/issues/156#issuecomment-449553709
+    Should '-hwaccel vdpau' be set?
     '''
     def __init__( self, fname, device = '/dev/video20', verbose = True ):
         super( StreamProcess, self ).__init__()
@@ -96,6 +98,36 @@ class OverlayStreamProcess( StreamProcess ):
         process = (
             inp.run_async( pipe_stdout      = False,
                            pipe_stdin       = False,
+                           quiet            = False,
+                           overwrite_output = True,
+            )
+        )
+        self._proc = process
+        self._t    = Thread(target=enqueue_output, args=(process, self._q ))
+        self._t.deamon = True # Thread must die with the program
+        self._t.start()
+
+class DesktopStreamProcess( StreamProcess ):
+    def __init__( self,
+                  x,
+                  y,
+                  w       = 640,
+                  h       = 480,
+                  display = ':0',
+                  device  = '/dev/video20',
+                  verbose = True ):
+        '''
+        ffmpeg -f x11grab -s 640x480 -i :0.0+10,20 -vf format=pix_fmts=yuv420p -f v4l2 /dev/video1
+        '''
+        self._q = Queue()
+
+        # Create ffmpeg interface process
+        inp = ffmpeg.input( '{0}.0+{1},{2}'.format( display, x, y ), s='{0}x{1}'.format( w, h ), f='x11grab' ).output( device, vf = 'format=pix_fmts=yuv420p', f='v4l2'  )
+        if verbose: print( inp.compile() )
+
+        process = (
+            inp.run_async( pipe_stdout      = True,
+                           pipe_stdin       = True,
                            quiet            = False,
                            overwrite_output = True,
             )

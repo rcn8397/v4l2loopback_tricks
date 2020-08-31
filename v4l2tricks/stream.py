@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """ffmpeg interfaces
 """
-from .ffmpeg_if import StreamProcess, OverlayStreamProcess
+from .ffmpeg_if import StreamProcess, OverlayStreamProcess, DesktopStreamProcess
 
 def stream_media( fname, dev ='/dev/video20' ):
     '''
@@ -15,3 +15,7 @@ def stream_media( fname, dev ='/dev/video20' ):
 
 def overlay_stream( fname, overlay, dev = '/dev/video20' ):
     return OverlayStreamProcess( fname, overlay, dev )
+
+
+def desktop_stream( x = 0, y = 0, w = 640, h = 480, display = ':0', dev = '/dev/video20' ):
+    return DesktopStreamProcess( x, y, w, h, display,  dev )
