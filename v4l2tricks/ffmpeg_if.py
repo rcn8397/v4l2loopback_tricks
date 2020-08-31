@@ -22,7 +22,7 @@ def enqueue_output( process, queue ):
 class StreamProcess( object ):
     '''
     StreamProcess
-    
+
     https://github.com/kkroening/ffmpeg-python/issues/156#issuecomment-449553709
 
     Should '-hwaccel vdpau' be set?
@@ -37,11 +37,11 @@ class StreamProcess( object ):
         if verbose: print( '{0}: w={1}, h={2}'.format( fname, width, height ) )
 
         # Create ffmpeg interface process
-        inp = ffmpeg.input( fname, re=None, ).output( device, f='v4l2' )
-        if verbose: print( inp.compile() )
+        stream = ffmpeg.input( fname, re=None, ).output( device, f='v4l2' )
+        if verbose: print( stream.compile() )
 
         process = (
-            inp.run_async( pipe_stdout      = False,#True,
+            stream.run_async( pipe_stdout      = False,#True,
                            pipe_stdin       = False,#True,
                            quiet            = True,
                            overwrite_output = True,
@@ -88,15 +88,15 @@ class OverlayStreamProcess( StreamProcess ):
         base = ffmpeg.input( fname, re=None )
         logo = ffmpeg.input( overlay )
         print( 'Combining inputs' )
-        inp  = (
+        stream  = (
             ffmpeg
             .filter( [base, logo], 'overlay', 10, 10 )
             .output( device, f='v4l2' )
             )
-        if verbose: print( inp.compile() )
+        if verbose: print( stream.compile() )
 
         process = (
-            inp.run_async( pipe_stdout      = False,
+            stream.run_async( pipe_stdout      = False,
                            pipe_stdin       = False,
                            quiet            = False,
                            overwrite_output = True,
@@ -122,14 +122,22 @@ class DesktopStreamProcess( StreamProcess ):
         self._q = Queue()
 
         # Create ffmpeg interface process
-        inp = ffmpeg.input( '{0}.0+{1},{2}'.format( display, x, y ), s='{0}x{1}'.format( w, h ), f='x11grab' ).output( device, vf = 'format=pix_fmts=yuv420p', f='v4l2'  )
-        if verbose: print( inp.compile() )
+        stream = (
+        ffmpeg
+        .input( '{0}.0+{1},{2}'.format( display, x, y ),
+                s='{0}x{1}'.format( w, h ),
+                f='x11grab' )
+        .output( device,
+                 vf = 'format=pix_fmts=yuv420p',
+                 f='v4l2'  )
+        )
+        if verbose: print( stream.compile() )
 
         process = (
-            inp.run_async( pipe_stdout      = True,
-                           pipe_stdin       = True,
-                           quiet            = False,
-                           overwrite_output = True,
+            stream.run_async( pipe_stdout      = True,
+                              pipe_stdin       = True,
+                              quiet            = False,
+                              overwrite_output = True,
             )
         )
         self._proc = process
@@ -209,7 +217,6 @@ def create_test_src(path='./testsrc.mp4', duration = 30):
 
 # Main
 def main():
-    print( "hello" )
     testsrc = './testsrc.mp4'
     sinesrc = './sinesrc.mp4'
     create_sine_src( sinesrc )

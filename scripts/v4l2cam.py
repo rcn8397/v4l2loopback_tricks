@@ -23,7 +23,8 @@ def dsk_stream( args ):
                              args.width,
                              args.height,
                              display,
-                             args.out )
+                             args.out,
+                             args.verbose )
     while stream.alive:
         if args.verbose:
             line = stream.readline
@@ -32,9 +33,9 @@ def dsk_stream( args ):
 # Stream a media files to device
 def fil_stream(args):
     if args.overlay is None:
-        stream = stream_media( args.source, args.out )
+        stream = stream_media( args.source, args.out, args.verbose )
     else:
-        stream = overlay_stream( args.source, args.overlay, args.out )
+        stream = overlay_stream( args.source, args.overlay, args.out, args.verbose )
     print( 'Streaming: {0}'.format( stream.alive ) )
     while stream.alive:
         if args.verbose:
@@ -51,7 +52,7 @@ def dir_stream( args ):
     found = fsutil.find( args.path, media_types )
     while True:
         for source in found:
-            stream = stream_media( source, args.out )
+            stream = stream_media( source, args.out, args.verbose )
             while stream.alive:
                 if args.verbose:
                     print( stream.readline )
