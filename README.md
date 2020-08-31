@@ -31,3 +31,8 @@ From stackoverflow: https://stackoverflow.com/questions/11640458/how-can-i-gener
 Generated from ffmpeg by:
 
     ffmpeg -f lavfi -i testsrc -t 30 -pix_fmt yuv420p testsrc.mp4
+
+or
+
+    python ./scripts/mktstsrc.py
+
