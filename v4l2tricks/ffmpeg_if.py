@@ -7,17 +7,36 @@ import sys
 import ffmpeg
 from threading import Thread
 
+buffersize = 1024
+
+
 try:
     from queue import Queue, Empty
 except ImportError as e:
     # Python 2.x
     from Queue import Queue, Empty
 
-def enqueue_output( process, queue ):
-    try:
-        outs, errs = process.communicate()
-    except Exception:
-        proc.kill()
+def queue_stdout( process, queue ):
+    print( 'queuing stdout' )
+    while process.poll() is None:
+        buf = process.stdout.read( buffersize )
+        queue.put( buf )
+    print('closing stdout' )
+    process.stdout.close()
+
+def queue_stderr( process, queue ):
+    print( 'queuing stderr' )
+    while process.poll() is None:
+        try:
+            queue.put( process.stderr.next() )
+        except StopIteration as e:
+            pass
+    print('closing stdout' )
+    process.stdout.close()
+
+def process_communicate( process, queue ):
+    out, err = process.communicate()
+
 
 class StreamProcess( object ):
     '''
@@ -27,10 +46,10 @@ class StreamProcess( object ):
 
     Should '-hwaccel vdpau' be set?
     '''
-    def __init__( self, fname, device = '/dev/video20', verbose = True ):
+    def __init__( self, fname, device = '/dev/video20', sink = False, verbose = True ):
         super( StreamProcess, self ).__init__()
-        self._q = Queue()
-
+        self._stdout_q = Queue()
+        self._stderr_q = Queue()
         self._verbose = verbose
         if verbose: print( 'Attempting to Stream: {} to {}'.format( fname, device ) )
         width, height, num_frames = probe( fname )
@@ -40,31 +59,49 @@ class StreamProcess( object ):
         stream = ffmpeg.input( fname, re=None, ).output( device, f='v4l2' )
         if verbose: print( stream.compile() )
 
+
         process = (
-            stream.run_async( pipe_stdout      = False,#True,
-                           pipe_stdin       = False,#True,
-                           quiet            = True,
-                           overwrite_output = True,
+            stream.run_async( pipe_stdout      = not sink,#False,#True,
+                              pipe_stdin       = not sink,#False,#True,
+                              quiet            = True,
+                              overwrite_output = True,
             )
         )
         self._proc = process
-        self._t    = Thread(target=enqueue_output, args=(process, self._q ))
-        self._t.deamon = True # Thread must die with the program
-        self._t.start()
+        if not sink:
+            print( 'threading io')
+            self.thread_io()
+        else:
+            print( 'sink' )
+            self.process_sink()
+
+
+    def process_sink( self ):
+        self._stdout_t = Thread( target=process_communicate, args = (self._proc, None))
+        self._stdout_t.deamon = True
+        self._stdout_t.start()
+
+    def thread_io( self ):
+        self._stdout_t = Thread( target=queue_stdout, args=( self._proc, self._stdout_q ) )
+
+        self._stderr_t = Thread( target=queue_stderr, args=( self._proc, self._stderr_q ) )
+        # Threads must die with the program
+        self._stdout_t.deamon = True
+        self._stderr_t.deamon = True
+
+        # Start the threads
+        self._stdout_t.start()
+        self._stderr_t.start()
 
 
     @property
     def readline( self ):
     #    return self._proc.stdout.readline()
         try:
-            line = self._q.get_nowait() # or q.get(timeout=.1)
+            line = self._stderr_q.get(timeout=0.1)#_nowait() # or q.get(timeout=.1)
         except Empty:
             return None
         return line
-
-
-    def read( self, bufsize = 80 ):
-        self._output += self._proc.stdout.read( bufsize )
 
     @property
     def alive( self ):
@@ -73,15 +110,17 @@ class StreamProcess( object ):
 
     def stop( self ):
         self._proc.kill()
-        self._t.join()
+        self._stdout_t.join()
+        self._stderr_t.join()
+        self._proc.stdout.close()
+        self._proc.stderr.close()
 
-    def dump( self ):
-        for line in self.readline:
-            print( line )
 
 class OverlayStreamProcess( StreamProcess ):
-    def __init__( self, fname, overlay, device = '/dev/video20', verbose = True ):
-        self._q = Queue()
+    def __init__( self, fname, overlay, device = '/dev/video20', sink = False,  verbose = True ):
+        self._stdout_q = Queue()
+        self._stderr_q = Queue()
+        self._verbose = verbose
 
         # Create ffmpeg interface process
         print( 'Building up sources' )
@@ -96,16 +135,18 @@ class OverlayStreamProcess( StreamProcess ):
         if verbose: print( stream.compile() )
 
         process = (
-            stream.run_async( pipe_stdout      = False,
-                           pipe_stdin       = False,
-                           quiet            = False,
-                           overwrite_output = True,
+            stream.run_async( pipe_stdout      = not sink,
+                              pipe_stdin       = not sink,
+                              quiet            = False,
+                              overwrite_output = True,
             )
         )
         self._proc = process
-        self._t    = Thread(target=enqueue_output, args=(process, self._q ))
-        self._t.deamon = True # Thread must die with the program
-        self._t.start()
+        if not sink:
+            self.thread_io()
+        else:
+            self.process_sink()
+
 
 class DesktopStreamProcess( StreamProcess ):
     def __init__( self,
@@ -117,9 +158,18 @@ class DesktopStreamProcess( StreamProcess ):
                   device  = '/dev/video20',
                   verbose = True ):
         '''
+        Resolutions tested:
+        640x480
+        720x480
+        1280x720
+
+        Note: don't forget to stop VLC before changing resolution
+
         ffmpeg -f x11grab -s 640x480 -i :0.0+10,20 -vf format=pix_fmts=yuv420p -f v4l2 /dev/video1
         '''
-        self._q = Queue()
+        self._stdout_q = Queue()
+        self._stderr_q = Queue()
+        self._verbose = verbose
 
         # Create ffmpeg interface process
         stream = (
@@ -134,16 +184,14 @@ class DesktopStreamProcess( StreamProcess ):
         if verbose: print( stream.compile() )
 
         process = (
-            stream.run_async( pipe_stdout      = True,
-                              pipe_stdin       = True,
-                              quiet            = False,
+            stream.run_async( pipe_stdout      = False,
+                              pipe_stdin       = False,
+                              quiet            = True,
                               overwrite_output = True,
             )
         )
         self._proc = process
-        self._t    = Thread(target=enqueue_output, args=(process, self._q ))
-        self._t.deamon = True # Thread must die with the program
-        self._t.start()
+        self.process_sink()
 
 def generate_thumbnail(in_filename, out_filename, time=0.1, width=120):
     '''

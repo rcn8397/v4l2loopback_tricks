@@ -1,12 +1,22 @@
 #!/usr/bin/env python
 import os
 import sys
+from time import sleep
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from v4l2tricks.stream    import stream_media, overlay_stream, desktop_stream
 from v4l2tricks.supported import MediaContainers
 from v4l2tricks           import fsutil
 
+def process_stream( stream ):
+    while stream.alive:
+        try:
+            line  = stream.readline
+            if line is not None:
+                print( line )
+        except KeyboardInterrupt:
+            pass
+    print( 'Bye' )
 
 # Stream the desktop to device
 def dsk_stream( args ):
@@ -25,10 +35,8 @@ def dsk_stream( args ):
                              display,
                              args.out,
                              args.verbose )
-    while stream.alive:
-        if args.verbose:
-            line = stream.readline
-            if line is not None: print( line )
+    process_stream( stream )
+
 
 # Stream a media files to device
 def fil_stream(args):
@@ -36,10 +44,9 @@ def fil_stream(args):
         stream = stream_media( args.source, args.out, args.verbose )
     else:
         stream = overlay_stream( args.source, args.overlay, args.out, args.verbose )
+
     print( 'Streaming: {0}'.format( stream.alive ) )
-    while stream.alive:
-        if args.verbose:
-            print( stream.readline )
+    process_stream( stream )
 
 
 # Stream a list of media files to device
@@ -54,8 +61,12 @@ def dir_stream( args ):
         for source in found:
             stream = stream_media( source, args.out, args.verbose )
             while stream.alive:
-                if args.verbose:
-                    print( stream.readline )
+                try:
+                    if args.verbose: print( stream.readline )
+                except KeyboardInterrupt:
+                    print( 'bye' )
+                    stream.stop()
+                    sys.exit(0)
 
         if not args.loop:
             break
@@ -121,7 +132,7 @@ if __name__ == '__main__':
 
     parser_dsk.set_defaults( func = dsk_stream )
 
-    
+
 
     #-------------------------
     # Help
