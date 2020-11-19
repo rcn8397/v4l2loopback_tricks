@@ -7,6 +7,9 @@ https://github.com/umlaeute/v4l2loopback
 # Setup
 Hard requirement for v4l2loopback kernel module and ffmpeg
 
+## Python modules
+    pip install -r requirements.txt
+    
 ## v4l2loopback
 ### Ubuntu/Debian install:
     sudo apt install v4l2loopback-dkms
