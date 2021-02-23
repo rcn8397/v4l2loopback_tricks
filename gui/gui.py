@@ -2,7 +2,7 @@
 import os
 import sys
 
-from PyQt5.QtCore import QTimer, Qt
+from PyQt5.QtCore import QTimer, Qt, QEvent, pyqtSignal
 from PyQt5.QtWidgets import QApplication, QMainWindow
 from PyQt5.QtWidgets import QLabel, QGridLayout, QPushButton, QWidget
 from PyQt5.QtWidgets import QHBoxLayout, QVBoxLayout
@@ -12,6 +12,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 
 
 class StreamScope( QWidget ):
+    resize_signal = pyqtSignal(int)
     def __init__( self ):
         super().__init__()
         self.setWindowTitle( self.__class__.__name__ )
@@ -54,6 +55,19 @@ class StreamScope( QWidget ):
         print( 'Stopped' )
         self.viewfinder.setStyleSheet( 'background-color: cyan; border:5px solid black; background:transparent; ' )
 
+    def moveEvent( self, event ):
+        print( self.pos() )
+        super().moveEvent(event)
+
+    def resizeEvent(self, event = None):
+        print( 'Resized' )
+        w = self.viewfinder.width()
+        h = self.viewfinder.height()
+        print( 'View Finder: {0} x {1}'.format( w, h ) )
+        self.resize_signal.emit( 1 )
+
+            
+            
 # Main
 def main():
     print( "hello" )
