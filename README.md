@@ -12,6 +12,7 @@ Hard requirement for v4l2loopback kernel module and ffmpeg
     pip install PyQt5 (if using the gui.py)
 
 Alternatively
+
     python3 -m pip install ffmpeg-python
     python3 -m pip install pyqt5
     
