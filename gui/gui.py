@@ -10,6 +10,7 @@ from PyQt5.QtWidgets import QHBoxLayout, QVBoxLayout
 # Setup imports from module
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
+from v4l2tricks.stream import desktop_stream
 
 get_video_devices = lambda : [ dev for dev in os.listdir('/dev') if 'video' in dev ]
 
@@ -41,9 +42,7 @@ class StreamScope( QWidget ):
     def init_layout( self ):
         layout1 = QVBoxLayout()
         layout2 = QHBoxLayout()
-        #layout1.setGeometry( QRect( 0, 0, 660, 500 ) )
         #layout1.setContentsMargins( 0, 0, 0, 0 )
-        #layout2.setGeometry( QRect( 0, 0, 640, 200 ) )
         
         # Get video devices
         combo      = QComboBox( self )
@@ -68,29 +67,26 @@ class StreamScope( QWidget ):
         self.viewfinder.setStyleSheet( 'background-color: cyan; border:5px solid orange; background:transparent; padding:0px;' )
         self.viewfinder.setMinimumWidth( 640 )
         self.viewfinder.setMinimumHeight( 480 )
-        self.viewfinder.setGeometry( QRect( 0, 0, 640, 480 ) )
+        self.viewfinder.setGeometry( QRect( 0, 0, 645, 485 ) )
 
         layout1.addWidget( self.viewfinder )
         layout1.addLayout( layout2 )
         self.setAttribute( Qt.WA_TranslucentBackground )
         self.setLayout( layout1 )
-
-    def set_screen_coords( self ):
-        self.streamer.x = self.pos().x() + self.viewfinder.pos().x()
-        self.streamer.y = self.pos().y() + self.viewfinder.pos().y()
-        self.streamer.width = self.viewfinder.width()
-        self.streamer.height = self.viewfinder.height()
+        self.update_frustum()
 
     def stream( self ):
         print( 'Started' )
-        self.viewfinder.setStyleSheet( 'background-color: cyan; border:5px solid red; background:transparent; ' )
-        self.set_screen_coords()
-        self.streamer.stream()
+        if not self.streamer.isStreaming():
+            self.viewfinder.setStyleSheet( 'background-color: cyan; border:5px solid red; background:transparent; ' )
+            self.update_frustum()
+            self.streamer.stream()
 
     def stop( self ):
-        print( 'Stopped' )
-        self.viewfinder.setStyleSheet( 'background-color: cyan; border:5px solid orange; background:transparent; padding:0;' )
-        self.streamer.stop()
+        if self.streamer.isStreaming():
+            print( 'Stopped' )
+            self.viewfinder.setStyleSheet( 'background-color: cyan; border:5px solid orange; background:transparent; padding:0;' )
+            self.streamer.stop()
 
     def comboChanged( self, text ):
         self.device = text
@@ -99,6 +95,10 @@ class StreamScope( QWidget ):
         print( 'Window: {0}, {1}x{2}'.format( self.pos(), self.width(), self.height() ) )
         print( 'Scope:  {0}, {1}x{2}'.format( self.viewfinder.pos(),self.viewfinder.width(), self.viewfinder.height() ) )
         print( 'Device: {0}'.format( self.device ) )
+        self.streamer.x = self.pos().x() + self.viewfinder.pos().x()
+        self.streamer.y = self.pos().y() + self.viewfinder.pos().y()
+        self.streamer.width = self.viewfinder.width()
+        self.streamer.height = self.viewfinder.height()
 
     def moveEvent( self, event ):
         self.update_frustum()
@@ -134,6 +134,9 @@ class DeskStreamer( QObject ):
         self.display  = None
         self.device   = '/dev/video20'
 
+    def isStreaming( self ):
+        return self._running
+
     def stream( self ):
         print( 'Stream called' )
         self._running = True
@@ -148,14 +151,11 @@ class DeskStreamer( QObject ):
         self._exit = True
 
     def long_running( self ):
-        import time
-        count = 0
         while not self._exit:
             if self._running:
-                time.sleep(1)
                 print("Streamer: running" )
                 self.debug_parameters()
-                count += 1
+                self.start_streaming()
 
         self.finished.emit()
         print( '{0} finished'.format( __class__.__name__ ) )
@@ -167,7 +167,7 @@ class DeskStreamer( QObject ):
         print( '{0}: {1}'.format( 'height', self.height ) )
 
     def process_stream( self, stream ):
-        while stream.alive:
+        while stream.alive and self._running:
             try:
                 line  = stream.readline
                 if line is not None:
@@ -193,7 +193,7 @@ class DeskStreamer( QObject ):
                                  self.height,
                                  self.display,
                                  self.device,
-                                 args.verbose )
+                                 True )
         self.process_stream( stream )
 
 
