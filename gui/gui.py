@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 import os
 import sys
-
+import time
 from PyQt5.QtCore    import QTimer, Qt, QEvent, pyqtSignal, QThread, QObject
 from PyQt5.QtWidgets import QApplication, QMainWindow
 from PyQt5.QtWidgets import QLabel, QGridLayout, QPushButton, QWidget, QComboBox, QScrollArea
@@ -20,9 +20,12 @@ class StreamScope( QWidget ):
         super().__init__()
         self.devices       = get_video_devices()
         self.device        = self.devices[0]
-        self.stream_thread = QThread()
+        self.stream_thread = QThread(parent=self)
         self.streamer      = DeskStreamer()
         self.streamer.moveToThread( self.stream_thread )
+        self.streamer.finished.connect( self.stream_thread.quit )
+        self.streamer.finished.connect( self.streamer.deleteLater )
+        self.stream_thread.finished.connect( self.stream_thread.deleteLater )
         self.stream_thread.start()
         self.stream_thread.started.connect( self.streamer.long_running )
         
@@ -91,6 +94,16 @@ class StreamScope( QWidget ):
         self.update_frustum()
         self.resize_signal.emit( 1 )
 
+    def closeEvent( self, event ):
+        self.thread_clean_up()
+        super().closeEvent( event )
+
+    def thread_clean_up( self ):
+        print( 'Cleaning up thread' )
+        self.streamer.exit()
+        self.stream_thread.quit()
+        self.stream_thread.wait()
+
 
 class DeskStreamer( QObject ):
     finished = pyqtSignal()
@@ -101,10 +114,17 @@ class DeskStreamer( QObject ):
         self._exit    = False
 
     def stream( self ):
+        print( 'Stream called' )
         self._running = True
         
     def stop( self ):
+        print( 'Stop called' )
         self._running = False
+
+    def exit( self ):
+        print( 'Exit called' )
+        self._running = False
+        self._exit = True
         
     def long_running( self ):
         import time
@@ -114,7 +134,9 @@ class DeskStreamer( QObject ):
                 time.sleep(1)
                 print("A Increasing")
                 count += 1
+                
         self.finished.emit()
+        print( '{0} finished'.format( __class__.__name__ ) )
 
     def process_stream( stream ):
         while stream.alive:
