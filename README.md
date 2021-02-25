@@ -16,6 +16,10 @@ Alternatively
     python3 -m pip install ffmpeg-python
     python3 -m pip install pyqt5
     
+Or
+
+    sudo apt-get install python3-pyqt5
+    
 ## v4l2loopback
 ### Ubuntu/Debian install:
     sudo apt install v4l2loopback-dkms
