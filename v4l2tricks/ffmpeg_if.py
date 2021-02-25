@@ -30,6 +30,7 @@ def queue_stderr( process, queue ):
         try:
             queue.put( process.stderr.next() )
         except StopIteration as e:
+            print( 'stop iteration' )
             pass
     print('closing stdout' )
     process.stdout.close()
@@ -80,6 +81,7 @@ class StreamProcess( object ):
         self._stdout_t = Thread( target=process_communicate, args = (self._proc, None))
         self._stdout_t.deamon = True
         self._stdout_t.start()
+        self._stderr_t = None
 
     def thread_io( self ):
         self._stdout_t = Thread( target=queue_stdout, args=( self._proc, self._stdout_q ) )
@@ -111,9 +113,12 @@ class StreamProcess( object ):
     def stop( self ):
         self._proc.kill()
         self._stdout_t.join()
-        self._stderr_t.join()
+        if self._stderr_t is not None:
+            self._stderr_t.join()
+            self._proc.stderr.close()
         self._proc.stdout.close()
-        self._proc.stderr.close()
+        
+        
 
 
 class OverlayStreamProcess( StreamProcess ):
@@ -176,9 +181,12 @@ class DesktopStreamProcess( StreamProcess ):
         ffmpeg
         .input( '{0}.0+{1},{2}'.format( display, x, y ),
                 s='{0}x{1}'.format( w, h ),
+                #f='x11grab' ).hflip()
                 f='x11grab' )
         .output( device,
-                 vf = 'format=pix_fmts=yuv420p',
+                 #vf = 'format=pix_fmts=yuv420p',
+                 #pix_fmt='yuv420p',
+                 pix_fmt='yuyv422',
                  f='v4l2'  )
         )
         if verbose: print( stream.compile() )
@@ -192,6 +200,55 @@ class DesktopStreamProcess( StreamProcess ):
         )
         self._proc = process
         self.process_sink()
+
+class DesktopScopeProcess( StreamProcess ):
+    def __init__( self,
+                  x,
+                  y,
+                  w       = 640,
+                  h       = 480,
+                  display = ':0',
+                  device  = '/dev/video20',
+                  verbose = True ):
+        '''
+        Resolutions tested:
+        640x480
+        720x480
+        1280x720
+
+        Note: don't forget to stop VLC before changing resolution
+
+        ffmpeg -f x11grab -s 640x480 -i :0.0+10,20 -vf format=pix_fmts=yuv420p -f v4l2 /dev/video1
+        '''
+        self._stdout_q = Queue()
+        self._stderr_q = Queue()
+        self._verbose = verbose
+
+        # Create ffmpeg interface process
+        stream = (
+        ffmpeg
+        .input( '{0}.0+{1},{2}'.format( display, x, y ),
+                s='{0}x{1}'.format( w, h ),
+                #f='x11grab' ).hflip()
+                f='x11grab' )
+        .output( device,
+                 #vf = 'format=pix_fmts=yuv420p',
+                 #pix_fmt='yuv420p',
+                 pix_fmt='yuyv422',
+                 f='v4l2'  )
+        )
+        if verbose: print( stream.compile() )
+
+        process = (
+            stream.run_async( pipe_stdout      = True,
+                              pipe_stdin       = True,
+                              quiet            = False,
+                              overwrite_output = False,
+            )
+        )
+        self._proc = process
+        self.process_sink()
+
 
 def generate_thumbnail(in_filename, out_filename, time=0.1, width=120):
     '''

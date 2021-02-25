@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 import os
 import sys
 import time
@@ -10,13 +10,17 @@ from PyQt5.QtWidgets import QHBoxLayout, QVBoxLayout
 # Setup imports from module
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from v4l2tricks.stream import desktop_stream
+from v4l2tricks.ffmpeg_if import DesktopScopeProcess
+#from v4l2tricks.stream import desktop_stream
 
 get_video_devices = lambda : [ dev for dev in os.listdir('/dev') if 'video' in dev ]
 
 
 class StreamScope( QWidget ):
     resize_signal = pyqtSignal(int)
+    resolutions   = [ (640,480),
+                      (720,480),
+                      (1280,720) ]
     def __init__( self ):
         super().__init__()
         self.devices       = get_video_devices()
@@ -43,7 +47,7 @@ class StreamScope( QWidget ):
         layout1 = QVBoxLayout()
         layout2 = QHBoxLayout()
         #layout1.setContentsMargins( 0, 0, 0, 0 )
-        
+
         # Get video devices
         combo      = QComboBox( self )
         for device in self.devices:
@@ -168,15 +172,10 @@ class DeskStreamer( QObject ):
 
     def process_stream( self, stream ):
         while stream.alive and self._running:
-            try:
-                line  = stream.readline
-                if line is not None:
-                    print( line )
-            except KeyboardInterrupt:
-                pass
-
-            if not self._running:
-                stream.stop()
+            line  = stream.readline
+            if line is not None:
+                print( line )
+        stream.stop()
         print( 'Bye' )
 
     def start_streaming( self ):
@@ -187,13 +186,22 @@ class DeskStreamer( QObject ):
             print( 'Could not detect DISPLAY variable (normally :0 or :1)' )
             pass
 
-        stream = desktop_stream( self.x,
-                                 self.y,
-                                 self.width,
-                                 self.height,
-                                 self.display,
-                                 self.device,
-                                 True )
+#        stream = desktop_stream( self.x,
+#                                 self.y,
+#                                 self.width,
+#                                 self.height,
+#                                 self.display,
+#                                 self.device,
+#                                 True )
+
+        stream = DesktopScopeProcess( self.x,
+                                      self.y,
+                                      self.width,
+                                      self.height,
+                                      self.display,
+                                      self.device,
+                                      True )
+
         self.process_stream( stream )
 
 
