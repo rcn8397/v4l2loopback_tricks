@@ -76,9 +76,8 @@ class StreamScope( QWidget ):
         self.setLayout( layout1 )
 
     def set_screen_coords( self ):
-        pos = self.pos()
-        self.streamer.x = pos.x()
-        self.streamer.y = pos.y()
+        self.streamer.x = self.pos().x() + self.viewfinder.pos().x()
+        self.streamer.y = self.pos().y() + self.viewfinder.pos().y()
         self.streamer.width = self.viewfinder.width()
         self.streamer.height = self.viewfinder.height()
 
