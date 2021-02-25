@@ -8,7 +8,8 @@ https://github.com/umlaeute/v4l2loopback
 Hard requirement for v4l2loopback kernel module and ffmpeg
 
 ## Python modules
-    pip install -r requirements.txt
+    pip install ffmpeg-python
+    pip install PyQt5 (if using the gui.py)
     
 ## v4l2loopback
 ### Ubuntu/Debian install:
