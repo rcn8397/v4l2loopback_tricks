@@ -229,11 +229,8 @@ class DesktopScopeProcess( StreamProcess ):
         ffmpeg
         .input( '{0}.0+{1},{2}'.format( display, x, y ),
                 s='{0}x{1}'.format( w, h ),
-                #f='x11grab' ).hflip()
-                f='x11grab' )
+                f='x11grab' ).hflip()
         .output( device,
-                 #vf = 'format=pix_fmts=yuv420p',
-                 #pix_fmt='yuv420p',
                  pix_fmt='yuyv422',
                  f='v4l2'  )
         )

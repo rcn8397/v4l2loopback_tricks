@@ -5,7 +5,7 @@ import time
 from PyQt5.QtCore    import QTimer, Qt, QEvent, pyqtSignal, QThread, QObject, QRect
 from PyQt5.QtWidgets import QApplication, QMainWindow
 from PyQt5.QtWidgets import QLabel, QGridLayout, QPushButton, QWidget, QComboBox, QScrollArea
-from PyQt5.QtWidgets import QHBoxLayout, QVBoxLayout
+from PyQt5.QtWidgets import QHBoxLayout, QVBoxLayout, QStyle
 
 # Setup imports from module
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -23,8 +23,9 @@ class StreamScope( QWidget ):
                       (1280,720) ]
     def __init__( self ):
         super().__init__()
+        self.title_bar_h   = self.style().pixelMetric( QStyle.PM_TitleBarHeight )
         self.devices       = get_video_devices()
-        self.device        = self.devices[0]
+        self.device        = '/dev/{0}'.format( self.devices[0] )
         self.stream_thread = QThread(parent=self)
         self.streamer      = DeskStreamer()
         self.streamer.moveToThread( self.stream_thread )
@@ -71,7 +72,7 @@ class StreamScope( QWidget ):
         self.viewfinder.setStyleSheet( 'background-color: cyan; border:5px solid orange; background:transparent; padding:0px;' )
         self.viewfinder.setMinimumWidth( 640 )
         self.viewfinder.setMinimumHeight( 480 )
-        self.viewfinder.setGeometry( QRect( 0, 0, 645, 485 ) )
+        self.viewfinder.setGeometry( QRect( 0, 0, 640, 480 ) )
 
         layout1.addWidget( self.viewfinder )
         layout1.addLayout( layout2 )
@@ -82,7 +83,7 @@ class StreamScope( QWidget ):
     def stream( self ):
         print( 'Started' )
         if not self.streamer.isStreaming():
-            self.viewfinder.setStyleSheet( 'background-color: cyan; border:5px solid red; background:transparent; ' )
+            self.viewfinder.setStyleSheet( 'background-color: cyan; border:1px hidden red; background:transparent; ' )
             self.update_frustum()
             self.streamer.stream()
 
@@ -93,23 +94,30 @@ class StreamScope( QWidget ):
             self.streamer.stop()
 
     def comboChanged( self, text ):
-        self.device = text
+        print( 'Combo changed: {0}'.format( text ) )
+        self.stop()
+        self.device = '/dev/{0}'.format( text )
 
     def update_frustum( self ):
         print( 'Window: {0}, {1}x{2}'.format( self.pos(), self.width(), self.height() ) )
+        print( 'Status: {0}'.format( self.title_bar_h ) )
         print( 'Scope:  {0}, {1}x{2}'.format( self.viewfinder.pos(),self.viewfinder.width(), self.viewfinder.height() ) )
         print( 'Device: {0}'.format( self.device ) )
-        self.streamer.x = self.pos().x() + self.viewfinder.pos().x()
-        self.streamer.y = self.pos().y() + self.viewfinder.pos().y()
-        self.streamer.width = self.viewfinder.width()
+        self.streamer.x = self.pos().x() + self.viewfinder.pos().x() + 0
+        self.streamer.y = self.pos().y() + self.viewfinder.pos().y() + self.title_bar_h + 5
+        self.streamer.width  = self.viewfinder.width()
         self.streamer.height = self.viewfinder.height()
+        self.streamer.device = self.device
 
     def moveEvent( self, event ):
+        print( 'Moved' )
+        self.stop()
         self.update_frustum()
         super().moveEvent(event)
 
     def resizeEvent(self, event = None):
         print( 'Resized' )
+        self.stop()
         self.update_frustum()
         self.resize_signal.emit( 1 )
 
@@ -159,7 +167,8 @@ class DeskStreamer( QObject ):
             if self._running:
                 print("Streamer: running" )
                 self.debug_parameters()
-                self.start_streaming()
+                time.sleep(1)
+                #self.start_streaming()
 
         self.finished.emit()
         print( '{0} finished'.format( __class__.__name__ ) )
@@ -169,6 +178,7 @@ class DeskStreamer( QObject ):
         print( '{0}: {1}'.format( 'y', self.y ) )
         print( '{0}: {1}'.format( 'width', self.width ) )
         print( '{0}: {1}'.format( 'height', self.height ) )
+        print( self.device )
 
     def process_stream( self, stream ):
         while stream.alive and self._running:
@@ -185,14 +195,6 @@ class DeskStreamer( QObject ):
         except KeyError as e:
             print( 'Could not detect DISPLAY variable (normally :0 or :1)' )
             pass
-
-#        stream = desktop_stream( self.x,
-#                                 self.y,
-#                                 self.width,
-#                                 self.height,
-#                                 self.display,
-#                                 self.device,
-#                                 True )
 
         stream = DesktopScopeProcess( self.x,
                                       self.y,
