@@ -83,14 +83,15 @@ class StreamScope( QWidget ):
         background-color: orange;
         }
         QPushButton#stop_btn{
-        background-color: red;
+        background-color: white;
         }
         QFrame{
-        background-color: #777777;
+        background-color: #3E3E3E;
         border-bottom-right-radius: 10px;
         border-bottom-left-radius:  10px;
         }
         '''
+
         self.frame.setStyleSheet( style )
 
         layout2.addWidget( self.stream_btn )
@@ -100,8 +101,18 @@ class StreamScope( QWidget ):
         self.frame.setLayout( layout2 )
         self.frame.setFixedHeight( self.frame.height()*1.5 )
 
-        self.viewfinder = QLabel()
-        self.viewfinder.setStyleSheet( 'background-color: cyan; border:5px solid orange; background:transparent; padding:0px;' )
+        self.viewfinder = QLabel(self, objectName='view_finder')
+        style='''
+        QLabel{
+        background-color: cyan;
+        }
+        QLabel#view_finder{
+        border:5px solid orange;
+        background:transparent;
+        padding:0px;
+        }
+        '''
+        self.viewfinder.setStyleSheet( style )
         self.viewfinder.setMinimumWidth( self.res_w )
         self.viewfinder.setMinimumHeight( self.res_h )
         self.viewfinder.setGeometry( QRect( self.frame.pos().x(), 0, self.res_w, self.res_h ) )
@@ -114,15 +125,17 @@ class StreamScope( QWidget ):
         self.update_frustum()
 
     def stream( self ):
-        print( 'Started' )
         if not self.streamer.isStreaming():
+            self.stream_btn.setStyleSheet( 'background-color: grey;' )
+            self.stop_btn.setStyleSheet( 'background-color: red;' )
             self.viewfinder.setStyleSheet( 'background-color: cyan; border:1px hidden red; background:transparent; ' )
             self.update_frustum()
             self.streamer.stream()
 
     def stop( self ):
         if self.streamer.isStreaming():
-            print( 'Stopped' )
+            self.stream_btn.setStyleSheet( 'background-color: orange;')
+            self.stop_btn.setStyleSheet( 'background-color: white;')
             self.viewfinder.setStyleSheet( 'background-color: cyan; border:5px solid orange; background:transparent; padding:0;' )
             self.streamer.stop()
 
