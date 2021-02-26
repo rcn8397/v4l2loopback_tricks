@@ -105,9 +105,9 @@ class StreamScope( QWidget ):
         self.viewfinder.setMinimumWidth( self.res_w )
         self.viewfinder.setMinimumHeight( self.res_h )
         self.viewfinder.setGeometry( QRect( self.frame.pos().x(), 0, self.res_w, self.res_h ) )
-
         layout1.addWidget( self.viewfinder )
         layout1.addWidget( self.frame )
+        layout1.setSpacing(0)
         layout1.setContentsMargins( 0 ,0 ,0, 0 )
         self.setAttribute( Qt.WA_TranslucentBackground )
         self.setLayout( layout1 )
