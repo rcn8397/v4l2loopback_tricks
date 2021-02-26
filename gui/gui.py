@@ -15,17 +15,22 @@ from v4l2tricks.ffmpeg_if import DesktopScopeProcess
 
 get_video_devices = lambda : [ dev for dev in os.listdir('/dev') if 'video' in dev ]
 
-
 class StreamScope( QWidget ):
-    resize_signal = pyqtSignal(int)
-    resolutions   = [ (640,480),
-                      (720,480),
-                      (1280,720) ]
+    resize_signal  = pyqtSignal(int)
+    win_dimensions = [ '660x500',
+                       '720x480',
+                       '1280x720' ]
+    resolutions    = [ '640x480',
+                       '720x480',
+                       '1280x720' ]
     def __init__( self ):
         super().__init__()
         self.title_bar_h   = self.style().pixelMetric( QStyle.PM_TitleBarHeight )
         self.devices       = get_video_devices()
         self.device        = '/dev/{0}'.format( self.devices[0] )
+        res                = self.resolutions[0].split( 'x' )
+        self.res_w         = int( res[0])
+        self.res_h         = int( res[1])
         self.stream_thread = QThread(parent=self)
         self.streamer      = DeskStreamer()
         self.streamer.moveToThread( self.stream_thread )
@@ -47,13 +52,17 @@ class StreamScope( QWidget ):
     def init_layout( self ):
         layout1 = QVBoxLayout()
         layout2 = QHBoxLayout()
-        #layout1.setContentsMargins( 0, 0, 0, 0 )
 
         # Get video devices
         combo      = QComboBox( self )
         for device in self.devices:
             combo.addItem( device )
         combo.activated[str].connect( self.comboChanged )
+
+        resolution = QComboBox( self )
+        for res in self.resolutions:
+            resolution.addItem( res )
+        resolution.activated[str].connect( self.resolutionChanged )
 
         stream_btn = QPushButton( self )
         stream_btn.setText( 'Stream' )
@@ -65,14 +74,15 @@ class StreamScope( QWidget ):
 
         layout2.addWidget( stream_btn )
         layout2.addWidget( stop_btn )
+        layout2.addWidget( resolution )
         layout2.addWidget( combo )
         layout2.setContentsMargins( 1, 1, 1, 10 )
 
         self.viewfinder = QLabel()
         self.viewfinder.setStyleSheet( 'background-color: cyan; border:5px solid orange; background:transparent; padding:0px;' )
-        self.viewfinder.setMinimumWidth( 640 )
-        self.viewfinder.setMinimumHeight( 480 )
-        self.viewfinder.setGeometry( QRect( 0, 0, 640, 480 ) )
+        self.viewfinder.setMinimumWidth( self.res_w )
+        self.viewfinder.setMinimumHeight( self.res_h )
+        self.viewfinder.setGeometry( QRect( 0, 0, self.res_w, self.res_h ) )
 
         layout1.addWidget( self.viewfinder )
         layout1.addLayout( layout2 )
@@ -98,6 +108,17 @@ class StreamScope( QWidget ):
         self.stop()
         self.device = '/dev/{0}'.format( text )
 
+    def resolutionChanged( self, text ):
+        print( 'Resolution changed: {0}'.format( text ) )
+        self.stop()
+        res = text.split( 'x' )
+        self.res_w = int( res[0] )
+        self.res_h = int( res[1] )
+        #self.viewfinder.setGeometry( QRect( 0, 0, self.res_w, self.res_h ) )
+        self.viewfinder.setFixedSize( self.res_w, self.res_h )
+        self.setGeometry( QRect( self.pos().x(), self.pos().y(), self.res_w, self.res_h ) )
+        self.adjustSize()
+        
     def update_frustum( self ):
         print( 'Window: {0}, {1}x{2}'.format( self.pos(), self.width(), self.height() ) )
         print( 'Status: {0}'.format( self.title_bar_h ) )
@@ -167,8 +188,8 @@ class DeskStreamer( QObject ):
             if self._running:
                 print("Streamer: running" )
                 self.debug_parameters()
-                time.sleep(1)
-                #self.start_streaming()
+                #time.sleep(1)
+                self.start_streaming()
 
         self.finished.emit()
         print( '{0} finished'.format( __class__.__name__ ) )
