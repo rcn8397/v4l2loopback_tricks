@@ -48,4 +48,11 @@ Generated from ffmpeg by:
 or
 
     python ./scripts/mktstsrc.py
+    
+# StreamSCope
+A simple program to help me dial in where/what gets stream on the desktop. Note this requires PyQt5 to be installed.
 
+    ./gui/streamscope.py
+
+![Stream Scope](https://ibb.co/VLNQFcC)
+![Screen Shot](https://i.ibb.co/QJcCW3H/streamscope-1-0.png)
