@@ -54,5 +54,7 @@ A simple program to help me dial in where/what gets stream on the desktop. Note 
 
     ./gui/streamscope.py
 
-![Stream Scope](https://ibb.co/VLNQFcC)
+## Screen shot
+Uploaded @ ![imgbb.com](https://ibb.co/VLNQFcC)
+
 ![Screen Shot](https://i.ibb.co/QJcCW3H/streamscope-1-0.png)
