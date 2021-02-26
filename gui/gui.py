@@ -99,7 +99,6 @@ class StreamScope( QWidget ):
         layout2.addWidget( combo )
         self.frame.setLayout( layout2 )
         self.frame.setFixedHeight( self.frame.height()*1.5 )
-        self.frame.setContentsMargins( 0,0,0,0 )
 
         self.viewfinder = QLabel()
         self.viewfinder.setStyleSheet( 'background-color: cyan; border:5px solid orange; background:transparent; padding:0px;' )
