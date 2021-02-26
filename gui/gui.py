@@ -114,8 +114,9 @@ class StreamScope( QWidget ):
         res = text.split( 'x' )
         self.res_w = int( res[0] )
         self.res_h = int( res[1] )
-        #self.viewfinder.setGeometry( QRect( 0, 0, self.res_w, self.res_h ) )
-        self.viewfinder.setFixedSize( self.res_w, self.res_h )
+        self.viewfinder.setMinimumWidth( self.res_w )
+        self.viewfinder.setMinimumHeight( self.res_h )
+        self.viewfinder.setGeometry( QRect( 0, 0, self.res_w, self.res_h ) )
         self.setGeometry( QRect( self.pos().x(), self.pos().y(), self.res_w, self.res_h ) )
         self.adjustSize()
         
