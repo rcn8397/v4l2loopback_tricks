@@ -5,7 +5,7 @@ import time
 from PyQt5.QtCore    import QTimer, Qt, QEvent, pyqtSignal, QThread, QObject, QRect
 from PyQt5.QtWidgets import QApplication, QMainWindow
 from PyQt5.QtWidgets import QLabel, QGridLayout, QPushButton, QWidget, QComboBox, QScrollArea
-from PyQt5.QtWidgets import QHBoxLayout, QVBoxLayout, QStyle
+from PyQt5.QtWidgets import QHBoxLayout, QVBoxLayout, QStyle, QFrame
 
 # Setup imports from module
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -17,9 +17,6 @@ get_video_devices = lambda : [ dev for dev in os.listdir('/dev') if 'video' in d
 
 class StreamScope( QWidget ):
     resize_signal  = pyqtSignal(int)
-    win_dimensions = [ '660x500',
-                       '720x480',
-                       '1280x720' ]
     resolutions    = [ '640x480',
                        '720x480',
                        '1280x720' ]
@@ -41,7 +38,7 @@ class StreamScope( QWidget ):
         self.stream_thread.started.connect( self.streamer.long_running )
 
         self.setWindowTitle( self.__class__.__name__ )
-        self.setGeometry( 0, 0, 660, 500 )
+        self.setGeometry( 0, 0, 640, 500 )
 
         self.init_layout()
 
@@ -55,8 +52,11 @@ class StreamScope( QWidget ):
 
         # Get video devices
         combo      = QComboBox( self )
-        for device in self.devices:
+        for i, device in enumerate( self.devices ):
             combo.addItem( device )
+            if device == 'video20':
+               combo.setCurrentIndex( i )
+               self.device = '/dev/{0}'.format( device )
         combo.activated[str].connect( self.comboChanged )
 
         resolution = QComboBox( self )
@@ -64,28 +64,52 @@ class StreamScope( QWidget ):
             resolution.addItem( res )
         resolution.activated[str].connect( self.resolutionChanged )
 
-        stream_btn = QPushButton( self )
-        stream_btn.setText( 'Stream' )
-        stream_btn.clicked.connect( self.stream )
 
-        stop_btn = QPushButton( self )
-        stop_btn.setText( 'Stop' )
-        stop_btn.clicked.connect( self.stop )
+        # Buttons
+        self.stream_btn = QPushButton( self, objectName='stream_btn' )
+        self.stream_btn.setText( 'Stream' )
+        self.stream_btn.clicked.connect( self.stream )
 
-        layout2.addWidget( stream_btn )
-        layout2.addWidget( stop_btn )
+        self.stop_btn = QPushButton( self, objectName='stop_btn' )
+        self.stop_btn.setText( 'Stop' )
+        self.stop_btn.clicked.connect( self.stop )
+
+        self.frame = QFrame(self )
+        style='''
+        QPushButton{
+            text-align:center;
+        }
+        QPushButton#stream_btn{
+        background-color: orange;
+        }
+        QPushButton#stop_btn{
+        background-color: red;
+        }
+        QFrame{
+        background-color: #777777;
+        border-bottom-right-radius: 10px;
+        border-bottom-left-radius:  10px;
+        }
+        '''
+        self.frame.setStyleSheet( style )
+
+        layout2.addWidget( self.stream_btn )
+        layout2.addWidget( self.stop_btn )
         layout2.addWidget( resolution )
         layout2.addWidget( combo )
-        layout2.setContentsMargins( 1, 1, 1, 10 )
+        self.frame.setLayout( layout2 )
+        self.frame.setFixedHeight( self.frame.height()*1.5 )
+        self.frame.setContentsMargins( 0,0,0,0 )
 
         self.viewfinder = QLabel()
         self.viewfinder.setStyleSheet( 'background-color: cyan; border:5px solid orange; background:transparent; padding:0px;' )
         self.viewfinder.setMinimumWidth( self.res_w )
         self.viewfinder.setMinimumHeight( self.res_h )
-        self.viewfinder.setGeometry( QRect( 0, 0, self.res_w, self.res_h ) )
+        self.viewfinder.setGeometry( QRect( self.frame.pos().x(), 0, self.res_w, self.res_h ) )
 
         layout1.addWidget( self.viewfinder )
-        layout1.addLayout( layout2 )
+        layout1.addWidget( self.frame )
+        layout1.setContentsMargins( 0 ,0 ,0, 0 )
         self.setAttribute( Qt.WA_TranslucentBackground )
         self.setLayout( layout1 )
         self.update_frustum()
@@ -116,10 +140,10 @@ class StreamScope( QWidget ):
         self.res_h = int( res[1] )
         self.viewfinder.setMinimumWidth( self.res_w )
         self.viewfinder.setMinimumHeight( self.res_h )
-        self.viewfinder.setGeometry( QRect( 0, 0, self.res_w, self.res_h ) )
+        self.viewfinder.setGeometry( QRect( self.frame.pos().x(), 0, self.res_w, self.res_h ) )
         self.setGeometry( QRect( self.pos().x(), self.pos().y(), self.res_w, self.res_h ) )
         self.adjustSize()
-        
+
     def update_frustum( self ):
         print( 'Window: {0}, {1}x{2}'.format( self.pos(), self.width(), self.height() ) )
         print( 'Status: {0}'.format( self.title_bar_h ) )
