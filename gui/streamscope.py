@@ -140,12 +140,10 @@ class StreamScope( QWidget ):
             self.streamer.stop()
 
     def comboChanged( self, text ):
-        print( 'Combo changed: {0}'.format( text ) )
         self.stop()
         self.device = '/dev/{0}'.format( text )
 
     def resolutionChanged( self, text ):
-        print( 'Resolution changed: {0}'.format( text ) )
         self.stop()
         res = text.split( 'x' )
         self.res_w = int( res[0] )
@@ -156,11 +154,14 @@ class StreamScope( QWidget ):
         self.setGeometry( QRect( self.pos().x(), self.pos().y(), self.res_w, self.res_h ) )
         self.adjustSize()
 
-    def update_frustum( self ):
+    def debug_frustum( self ):
         print( 'Window: {0}, {1}x{2}'.format( self.pos(), self.width(), self.height() ) )
         print( 'Status: {0}'.format( self.title_bar_h ) )
         print( 'Scope:  {0}, {1}x{2}'.format( self.viewfinder.pos(),self.viewfinder.width(), self.viewfinder.height() ) )
         print( 'Device: {0}'.format( self.device ) )
+
+    def update_frustum( self ):
+        #self.debug_frustum()
         self.streamer.x = self.pos().x() + self.viewfinder.pos().x() + 0
         self.streamer.y = self.pos().y() + self.viewfinder.pos().y() + self.title_bar_h + 5
         self.streamer.width  = self.viewfinder.width()
@@ -168,13 +169,11 @@ class StreamScope( QWidget ):
         self.streamer.device = self.device
 
     def moveEvent( self, event ):
-        print( 'Moved' )
         self.stop()
         self.update_frustum()
         super().moveEvent(event)
 
     def resizeEvent(self, event = None):
-        print( 'Resized' )
         self.stop()
         self.update_frustum()
         self.resize_signal.emit( 1 )
@@ -208,23 +207,21 @@ class DeskStreamer( QObject ):
         return self._running
 
     def stream( self ):
-        print( 'Stream called' )
         self._running = True
 
     def stop( self ):
-        print( 'Stop called' )
         self._running = False
 
     def exit( self ):
-        print( 'Exit called' )
+        print( 'Exiting' )
         self._running = False
         self._exit = True
 
     def long_running( self ):
         while not self._exit:
             if self._running:
-                print("Streamer: running" )
-                self.debug_parameters()
+                print( 'Attempting to start stream' )
+                #self.debug_parameters()
                 #time.sleep(1)
                 self.start_streaming()
 
