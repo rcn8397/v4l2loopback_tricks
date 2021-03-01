@@ -42,6 +42,11 @@ class StreamScope( QWidget ):
 
         self.init_layout()
 
+        self.setWindowFlags( self.windowFlags() # Keep existing flags
+                             | Qt.WindowStaysOnTopHint 
+        )
+
+        
         # Show the window
         self.show()
 
