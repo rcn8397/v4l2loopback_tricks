@@ -2,18 +2,22 @@
 import os
 import sys
 import time
-from PyQt5.QtCore    import QTimer, Qt, QEvent, pyqtSignal, QThread, QObject, QRect, QSize
-from PyQt5.QtWidgets import QApplication, QMainWindow, QListView, QFileSystemModel, QTreeView
-from PyQt5.QtWidgets import QLabel, QGridLayout, QPushButton, QWidget, QComboBox, QScrollArea
-from PyQt5.QtWidgets import QHBoxLayout, QVBoxLayout, QStyle, QFrame
-
+from PyQt5.QtCore import *
+from PyQt5.QtGui import *
+from PyQt5.QtWidgets import *
 
 # Setup imports from module
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from v4l2tricks.ffmpeg_if import DesktopScopeProcess
+from v4l2tricks.stream import stream_media
+from v4l2tricks.supported import MediaContainers
+from v4l2tricks           import fsutil
 
 get_video_devices = lambda : [ dev for dev in os.listdir('/dev') if 'video' in dev ]
+
+# Media extensions
+containers  = MediaContainers()
+media_types = containers.extensions()
 
 class VidStreamer( QWidget ):
     resize_signal  = pyqtSignal(int)
@@ -38,7 +42,7 @@ class VidStreamer( QWidget ):
         self.stream_thread.started.connect( self.streamer.long_running )
 
         self.setWindowTitle( self.__class__.__name__ )
-        self.setGeometry( 0, 0, 640, 500 )
+        #self.setGeometry( 0, 0, 640, 500 )
 
         self.init_layout()
 
@@ -52,6 +56,7 @@ class VidStreamer( QWidget ):
         layout_main = QVBoxLayout()
         layout_sxs  = QHBoxLayout()
         layout_list = QVBoxLayout()
+        layout_lbtn = QHBoxLayout()
         layout_ctrl = QHBoxLayout()
         layout_mntr = QVBoxLayout()
 
@@ -69,7 +74,7 @@ class VidStreamer( QWidget ):
             resolution.addItem( res )
         resolution.activated[str].connect( self.resolutionChanged )
 
-        # Buttons
+        # Buttons        
         self.stream_btn = QPushButton( self, objectName='stream_btn' )
         self.stream_btn.setText( 'Stream' )
         self.stream_btn.clicked.connect( self.stream )
@@ -95,25 +100,38 @@ class VidStreamer( QWidget ):
         }
         '''
         self.frame.setStyleSheet( style )
-
         layout_ctrl.addWidget( self.stream_btn )
         layout_ctrl.addWidget( self.stop_btn )
         layout_ctrl.addWidget( resolution )
         layout_ctrl.addWidget( combo )
         self.frame.setLayout( layout_ctrl )
 
-        self.treeview = QTreeView()
-        self.mediafiles = QFileSystemModel(self.treeview, objectName='media_files')
-        self.mediafiles.setReadOnly( True )
+        # Play list
+        find_btn    = QPushButton( self, objectName='find_btn' )
+        find_btn.setText( 'O' )
+        find_btn.clicked.connect( self.find )
 
-        path = self.mediafiles.setRootPath( '.' )
-        self.treeview.setModel( self.mediafiles )
-        self.treeview.setRootIndex( path )
+        add_btn = QPushButton( self, objectName='add_btn' )
+        add_btn.setText( '+' )
+        add_btn.clicked.connect( self.add )
 
-        layout_list.addWidget( self.treeview )
+        rm_btn = QPushButton( self, objectName='remove_btn' )
+        rm_btn.setText( '-' )
+        rm_btn.clicked.connect( self.remove )
+        layout_lbtn.addWidget( find_btn )
+        layout_lbtn.addWidget( add_btn )
+        layout_lbtn.addWidget( rm_btn )
+        layout_lbtn.setContentsMargins( 0,0,0,0)
+        
+        self.playlist   = QListView( self )
+        self.mediafiles = QStandardItemModel()
+        self.playlist.setModel( self.mediafiles )
+        self.load_sources()
+        
+        layout_list.addWidget( self.playlist )
+        layout_list.addLayout( layout_lbtn )
 
         self.nowplaying = QLabel( self, objectName='now_playing' )
-        self.nextup     = QLabel( self, objectName='next_up' )
         style='''
         QLabel{
         background-color: orange;
@@ -121,10 +139,6 @@ class VidStreamer( QWidget ):
         QLabel#now_playing{
         border:5px solid cyan;
         }
-        QLabel#next_up{
-        border:5px solid blue;
-        }
-
         '''
         self.nowplaying.setStyleSheet( style )
         self.nowplaying.setGeometry( QRect( self.frame.pos().x(), 0, 640, 480 ) )
@@ -145,6 +159,26 @@ class VidStreamer( QWidget ):
         #self.setAttribute( Qt.WA_TranslucentBackground )
         self.setLayout( layout_main )
         self.update_frustum()
+
+    def add( self ):
+        print( 'add' )
+
+    def remove( self ):
+        print( 'remove' )
+        
+    def find( self ):
+        self.load_sources()
+
+    def load_sources( self, dirname = '.' ):
+        self.sources = fsutil.find( dirname, media_types )
+        self.mediafiles.clear()
+        icon = 'icons/export/32x32/cog.png'
+        for i, path in enumerate( self.sources ):
+            print( os.path.basename( path ) )
+            item = QStandardItem( path )
+            self.mediafiles.appendRow( item )
+            item.setData( QIcon( icon ), Qt.DecorationRole )
+        print( 'done' )
 
     def stream( self ):
         if not self.streamer.isStreaming():
