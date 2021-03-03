@@ -107,9 +107,9 @@ class VidStreamer( QWidget ):
         self.frame.setLayout( layout_ctrl )
 
         # Play list
-        find_btn    = QPushButton( self, objectName='find_btn' )
-        find_btn.setText( 'O' )
-        find_btn.clicked.connect( self.find )
+        self.find_btn    = QPushButton( self, objectName='find_btn' )
+        self.find_btn.setText( 'O' )
+        self.find_btn.clicked.connect( self.find )
 
         add_btn = QPushButton( self, objectName='add_btn' )
         add_btn.setText( '+' )
@@ -118,7 +118,7 @@ class VidStreamer( QWidget ):
         rm_btn = QPushButton( self, objectName='remove_btn' )
         rm_btn.setText( '-' )
         rm_btn.clicked.connect( self.remove )
-        layout_lbtn.addWidget( find_btn )
+        layout_lbtn.addWidget( self.find_btn )
         layout_lbtn.addWidget( add_btn )
         layout_lbtn.addWidget( rm_btn )
         layout_lbtn.setContentsMargins( 0,0,0,0)
@@ -146,7 +146,6 @@ class VidStreamer( QWidget ):
         self.nowplaying.setFixedWidth( 360 )
 
         layout_mntr.addWidget( self.nowplaying )
-        #layout_mntr.addWidget( self.nextup )
 
         # Add layouts to main layout
         layout_sxs.addLayout( layout_list )
@@ -158,8 +157,31 @@ class VidStreamer( QWidget ):
 
         #self.setAttribute( Qt.WA_TranslucentBackground )
         self.setLayout( layout_main )
-        self.update_frustum()
 
+    def init_src_updater(self):
+        self.src_thread = QThread()
+        self.src_worker = SourceUpdater()
+        self.src_worker.moveToThread( self. src_thread )
+
+        # Connect signals and slots
+        self.src_thread.started.connect(self.src_worker.run)
+        self.src_worker.finished.connect(self.src_thread.quit)
+        self.src_worker.finished.connect(self.src_worker.deleteLater)
+        self.src_thread.finished.connect(self.src_thread.deleteLater)
+        self.src_worker.progress.connect(self.reportProgress )
+
+        # Start the thread
+        self.src_thread.start()
+
+        # Final
+        self.find_btn.setEnabled(False)
+        self.src_thread.finished.connect(
+            lambda: self.find_btn.setEnabled( True )
+        )
+        self.src_thread.finished.connect(
+            self.update_sources
+        )
+        
     def add( self ):
         print( 'add' )
 
@@ -169,8 +191,7 @@ class VidStreamer( QWidget ):
     def find( self ):
         self.load_sources()
 
-    def load_sources( self, dirname = '.' ):
-        self.sources = fsutil.find( dirname, media_types )
+    def update_sources(self):
         self.mediafiles.clear()
         icon = 'icons/export/32x32/cog.png'
         for i, path in enumerate( self.sources ):
@@ -179,6 +200,10 @@ class VidStreamer( QWidget ):
             self.mediafiles.appendRow( item )
             item.setData( QIcon( icon ), Qt.DecorationRole )
         print( 'done' )
+
+    def load_sources( self, dirname = '.' ):
+        self.sources = fsutil.find( dirname, media_types )
+        self.update_sources()
 
     def stream( self ):
         if not self.streamer.isStreaming():
@@ -222,6 +247,34 @@ class VidStreamer( QWidget ):
         self.stream_thread.wait()
 
 
+class SourceUpdater( QObject ):
+    finished = pyqtSignal()
+    progress = pyqtSignal()
+    def __init__( self ):
+        super( SourceUpdater, self ).__init__()
+        self._running = False
+        self._exit    = False
+
+    def discover( self ):
+        self._running = True
+
+    def stop( self ):
+        self._running = False
+
+    def exit( self ):
+        print( 'Exiting' )
+        self._running = False
+        self._exit = True
+
+    def long_running( self ):
+        while not self._exit:
+            if self._running:
+                print( 'Running Source Updater' )
+                time.sleep(1)
+                #self.sources = fsutil.find( dirname, media_types )
+        self.finished.emit()
+        print( '{0} finished'.format( __class__.__name__ ) )
+        
 class DeskStreamer( QObject ):
     finished = pyqtSignal()
 
