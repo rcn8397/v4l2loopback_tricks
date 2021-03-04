@@ -13,6 +13,14 @@ from v4l2tricks.stream import stream_media
 from v4l2tricks.supported import MediaContainers
 from v4l2tricks           import fsutil
 
+def trap_exc_during_debug(*args):
+    # when app raises uncaught exception, print info
+    print(args)
+
+
+# install exception hook: without this, uncaught exception would cause application to exit
+#sys.excepthook = trap_exc_during_debug
+
 get_video_devices = lambda : [ dev for dev in os.listdir('/dev') if 'video' in dev ]
 
 # Media extensions
@@ -24,15 +32,22 @@ mutex   = QMutex()
 
 class VidStreamer( QWidget ):
     resize_signal  = pyqtSignal(int)
+    sig_abort_workers = pyqtSignal()
+    
     def __init__( self ):
         super().__init__()
         self.title_bar_h   = self.style().pixelMetric( QStyle.PM_TitleBarHeight )
-        self.dirname       = '~/'
+        self.dirname       = '.'
         self.src_threads   = []
         self.devices       = get_video_devices()
         self.device        = '/dev/{0}'.format( self.devices[0] )
+
+        # Threading: Media updaters
+        self.__updaters      = None
+
+        # Threading: Streamer
         self.stream_thread = QThread(parent=self)
-        self.streamer      = DeskStreamer()
+        self.streamer      = MediaStreamer()
         self.streamer.moveToThread( self.stream_thread )
         self.streamer.finished.connect( self.stream_thread.quit )
         self.streamer.finished.connect( self.streamer.deleteLater )
@@ -72,7 +87,7 @@ class VidStreamer( QWidget ):
         self.stop_btn = QPushButton( self, objectName='stop_btn' )
         self.stop_btn.setText( 'Stop' )
         self.stop_btn.clicked.connect( self.stop )
-
+        
         self.frame = QFrame(self )
         style='''
         QPushButton{
@@ -107,17 +122,24 @@ class VidStreamer( QWidget ):
         rm_btn = QPushButton( self, objectName='remove_btn' )
         rm_btn.setText( '-' )
         rm_btn.clicked.connect( self.remove )
+
         layout_lbtn.addWidget( self.find_btn )
         layout_lbtn.addWidget( add_btn )
         layout_lbtn.addWidget( rm_btn )
         layout_lbtn.setContentsMargins( 0,0,0,0)
-        
+
+        #self.progress = QTextEdit()
+        self.progressBar = QProgressBar( self )
+        #self.progressBar.setGeometry(QtCore.QRect(10, 260, 381, 23))
+        self.progressBar.setValue(0)
+                
         self.playlist   = QListView( self )
         self.mediafiles = QStandardItemModel()
         self.playlist.setModel( self.mediafiles )
 
         directories = QComboBox( self )
         home = os.path.expanduser( '~/' )
+        directories.addItem( '.' )
         directories.addItem( home )
         for f in os.listdir( home ):
             abs_path = os.path.join( home, f )
@@ -127,6 +149,8 @@ class VidStreamer( QWidget ):
         layout_list.addWidget( directories )
         layout_list.addWidget( self.playlist )
         layout_list.addLayout( layout_lbtn )
+        #layout_list.addWidget( self.progress )
+        layout_list.addWidget( self.progressBar )
 
         self.nowplaying = QLabel( self, objectName='now_playing' )
         style='''
@@ -143,35 +167,71 @@ class VidStreamer( QWidget ):
         self.nowplaying.setFixedWidth( 360 )
         layout_mntr.addWidget( self.nowplaying )
 
+        # Log output
+        self.log = QTextEdit()
+
         # Add layouts to main layout
         layout_sxs.addLayout( layout_list )
         layout_sxs.addLayout( layout_mntr )
         layout_main.addLayout( layout_sxs )
         layout_main.addWidget( self.frame )
+        layout_main.addWidget( self.log )
         self.setLayout( layout_main )
         
     def add( self ):
-        print( 'add' )
+        self.log.append('add' )
 
     def remove( self ):
-        print( 'remove' )
+        self.log.append( 'remove' )
         
     def find( self ):
-        print( 'Sources: ', sources )
+        self.progressBar.setValue( 0 )
+        self.log.append( 'Sources: {0}'.format( sources ) )
+        self.find_btn.setDisabled( True )
+
+        self.__updaters = []
         thread = QThread()
-        worker = SourceUpdater( '.' )
-        worker.moveToThread( thread )
-        thread.started.connect( lambda : worker.discover() )
-        worker.updated.connect( self.update_sources )
-        worker.finished.connect( thread.quit )
-        worker.finished.connect( worker.deleteLater )
-        thread.finished.connect( thread.deleteLater )
-        self.src_threads.append( thread )
+        thread.setObjectName( 'Updater' )
+        worker = SourceUpdater( 0 )
+        # Keep references to worker and thread to avoid garbage collection
+        self.__updaters.append( ( thread, worker ) )
+        worker.moveToThread( thread )        
+
+        # Connect signals
+        worker.sig_step.connect( self.discover_step )
+        worker.sig_done.connect( self.discover_done )
+        worker.sig_msg.connect(  self.log.append )
+        self.sig_abort_workers.connect( worker.abort )
+
+        thread.started.connect( worker.discover )        
         thread.start()
-        print( 'Thread started' )
+        self.log.append( 'Thread started' )
+
+    @pyqtSlot( int, int )
+    def discover_step( self, worker_id: int, data: int ):
+        self.log.append( 'Worker #{}: {}'.format(worker_id, data) )
+        self.progressBar.setValue( data )
+        #self.progress.append( '{}: {}'.format(worker_id, data) )
+
+    @pyqtSlot( int )
+    def discover_done( self, worker_id ):
+
+        self.log.append( 'worker #{} done'.format(worker_id) )
+        self.progressBar.setValue( 100 )
+        #self.progress.append( '-- Worker {} DONE'.format(worker_id) )
+        self.find_btn.setEnabled( True )
+
+    @pyqtSlot()
+    def abort_discover( self ):
+        self.sig_abort_workers.emit()
+        self.log.append( 'Requesting abort' )
+        for thread, work in self.__updaters:
+            thread.quit()
+            thread.wait()
+        self.log.append( 'All updaters exited' )
 
     def update_sources(self):
-        print( 'Updating sources' )
+        self.log.append( 'Updating sources' )
         self.mediafiles.clear()
         for i, path in enumerate( sources ):
             item = QStandardItem( path )
@@ -209,26 +269,43 @@ class VidStreamer( QWidget ):
 
 
 class SourceUpdater( QObject ):
-    finished = pyqtSignal()
-    updated  = pyqtSignal()
+    sig_step = pyqtSignal(int,int) # Id, step description
+    sig_done = pyqtSignal(int)      # Id, end of job
+    sig_msg  = pyqtSignal(str)      # msg to user
 
-    def __init__( self, path ):
+    def __init__( self, id:int ):
         super( SourceUpdater, self ).__init__()
-        self.path = path 
+        self.__id = id
+        self.__abort = False
 
+    @pyqtSlot()
     def discover( self ):
-        global sources
-#        mutex.lock()
-        sources = fsutil.find( self.path, media_types )
-        self.updated.emit()
-#        mutex.unlock()
-        self.finished.emit()
+        ''' Perform task '''
+        thread_name = QThread.currentThread().objectName()
+        thread_id   = int( QThread.currentThreadId() )
+        msg = 'Running worker #{} from thread "{}" (#{})'.format(self.__id, thread_name, thread_id)
+        self.sig_msg.emit(msg)
+        for step in range(100):
+            time.sleep(0.1)
+            self.sig_step.emit( self.__id, int( step ) )
+            # Check for abort
+            if self.__abort:
+                msg = 'Worker #{} aborting work at step {}'.format(self.__id, step)
+                self.sig_msg.emit(msg)
+                break
+        self.sig_done.emit( self.__id )
+
+    def abort( self ):
+        msg = 'Worker #{} notified to abort'.format(self.__id)
+        self.sig_msg.emit( msg )
+        self.__abort = True
+
         
-class DeskStreamer( QObject ):
+class MediaStreamer( QObject ):
     finished = pyqtSignal()
 
     def __init__( self ):
-        super(DeskStreamer, self).__init__()
+        super(MediaStreamer, self).__init__()
         self._running = False
         self._exit    = False
         self.x        = 0
@@ -256,9 +333,9 @@ class DeskStreamer( QObject ):
         while not self._exit:
             if self._running:
                 print( 'Attempting to start stream' )
-                #self.debug_parameters()
-                #time.sleep(1)
-                self.start_streaming()
+                self.debug_parameters()
+                time.sleep(1)
+                #self.start_streaming()
 
         self.finished.emit()
         print( '{0} finished'.format( __class__.__name__ ) )
