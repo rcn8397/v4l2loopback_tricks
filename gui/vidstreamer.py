@@ -19,6 +19,9 @@ get_video_devices = lambda : [ dev for dev in os.listdir('/dev') if 'video' in d
 containers  = MediaContainers()
 media_types = containers.extensions()
 
+sources = list()
+mutex   = QMutex()
+
 class VidStreamer( QWidget ):
     resize_signal  = pyqtSignal(int)
     resolutions    = [ '640x480',
@@ -27,6 +30,8 @@ class VidStreamer( QWidget ):
     def __init__( self ):
         super().__init__()
         self.title_bar_h   = self.style().pixelMetric( QStyle.PM_TitleBarHeight )
+        self.dirname       = '~/'
+        self.src_threads   = []
         self.devices       = get_video_devices()
         self.device        = '/dev/{0}'.format( self.devices[0] )
         res                = self.resolutions[0].split( 'x' )
@@ -126,8 +131,16 @@ class VidStreamer( QWidget ):
         self.playlist   = QListView( self )
         self.mediafiles = QStandardItemModel()
         self.playlist.setModel( self.mediafiles )
-        self.load_sources()
-        
+
+        directories = QComboBox( self )
+        home = os.path.expanduser( '~/' )
+        directories.addItem( home )
+        for f in os.listdir( home ):
+            abs_path = os.path.join( home, f )
+            if os.path.isdir( abs_path ):
+                directories.addItem( abs_path  )
+        directories.activated[str].connect( self.directoryChanged )
+        layout_list.addWidget( directories )
         layout_list.addWidget( self.playlist )
         layout_list.addLayout( layout_lbtn )
 
@@ -157,30 +170,6 @@ class VidStreamer( QWidget ):
 
         #self.setAttribute( Qt.WA_TranslucentBackground )
         self.setLayout( layout_main )
-
-    def init_src_updater(self):
-        self.src_thread = QThread()
-        self.src_worker = SourceUpdater()
-        self.src_worker.moveToThread( self. src_thread )
-
-        # Connect signals and slots
-        self.src_thread.started.connect(self.src_worker.run)
-        self.src_worker.finished.connect(self.src_thread.quit)
-        self.src_worker.finished.connect(self.src_worker.deleteLater)
-        self.src_thread.finished.connect(self.src_thread.deleteLater)
-        self.src_worker.progress.connect(self.reportProgress )
-
-        # Start the thread
-        self.src_thread.start()
-
-        # Final
-        self.find_btn.setEnabled(False)
-        self.src_thread.finished.connect(
-            lambda: self.find_btn.setEnabled( True )
-        )
-        self.src_thread.finished.connect(
-            self.update_sources
-        )
         
     def add( self ):
         print( 'add' )
@@ -189,22 +178,31 @@ class VidStreamer( QWidget ):
         print( 'remove' )
         
     def find( self ):
-        self.load_sources()
+        print( 'Sources: ', sources )
+        thread = QThread()
+        worker = SourceUpdater()
+        worker.moveToThread( thread )
+        thread.started.connect( lambda : worker.discover( '.' ) )
+        worker.updated.connect( self.update_sources )
+        worker.finished.connect( thread.quit )
+        worker.finished.connect( worker.deleteLater )
+        thread.finished.connect( thread.deleteLater )
+        self.src_threads.append( thread )
+        thread.start()
 
     def update_sources(self):
+        print( 'Updating sources' )
         self.mediafiles.clear()
         icon = 'icons/export/32x32/cog.png'
-        for i, path in enumerate( self.sources ):
+        for i, path in enumerate( sources ):
             print( os.path.basename( path ) )
             item = QStandardItem( path )
             self.mediafiles.appendRow( item )
             item.setData( QIcon( icon ), Qt.DecorationRole )
+        # Clean up the thread
         print( 'done' )
 
-    def load_sources( self, dirname = '.' ):
-        self.sources = fsutil.find( dirname, media_types )
-        self.update_sources()
-
+        
     def stream( self ):
         if not self.streamer.isStreaming():
             self.stream_btn.setStyleSheet( 'background-color: grey;' )
@@ -217,6 +215,9 @@ class VidStreamer( QWidget ):
             self.stop_btn.setStyleSheet( 'background-color: white;')
             self.streamer.stop()
 
+    def directoryChanged( self, text ):
+        self.dirname = text
+        
     def comboChanged( self, text ):
         self.stop()
         self.device = '/dev/{0}'.format( text )
@@ -249,29 +250,15 @@ class VidStreamer( QWidget ):
 
 class SourceUpdater( QObject ):
     finished = pyqtSignal()
-    progress = pyqtSignal()
-    def __init__( self ):
-        super( SourceUpdater, self ).__init__()
-        self._running = False
-        self._exit    = False
+    updated  = pyqtSignal()
 
-    def discover( self ):
-        self._running = True
-
-    def stop( self ):
-        self._running = False
-
-    def exit( self ):
-        print( 'Exiting' )
-        self._running = False
-        self._exit = True
-
-    def long_running( self ):
-        while not self._exit:
-            if self._running:
-                print( 'Running Source Updater' )
-                time.sleep(1)
-                #self.sources = fsutil.find( dirname, media_types )
+    def discover( self, dirname ):
+        print( 'Discovering media')
+        global sources
+        mutex.lock()
+        sources = fsutil.find( dirname, media_types )
+        self.updated.emit()
+        mutex.unlock()
         self.finished.emit()
         print( '{0} finished'.format( __class__.__name__ ) )
         
