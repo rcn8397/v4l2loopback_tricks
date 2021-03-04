@@ -24,9 +24,6 @@ mutex   = QMutex()
 
 class VidStreamer( QWidget ):
     resize_signal  = pyqtSignal(int)
-    resolutions    = [ '640x480',
-                       '720x480',
-                       '1280x720' ]
     def __init__( self ):
         super().__init__()
         self.title_bar_h   = self.style().pixelMetric( QStyle.PM_TitleBarHeight )
@@ -34,9 +31,6 @@ class VidStreamer( QWidget ):
         self.src_threads   = []
         self.devices       = get_video_devices()
         self.device        = '/dev/{0}'.format( self.devices[0] )
-        res                = self.resolutions[0].split( 'x' )
-        self.res_w         = int( res[0])
-        self.res_h         = int( res[1])
         self.stream_thread = QThread(parent=self)
         self.streamer      = DeskStreamer()
         self.streamer.moveToThread( self.stream_thread )
@@ -47,11 +41,7 @@ class VidStreamer( QWidget ):
         self.stream_thread.started.connect( self.streamer.long_running )
 
         self.setWindowTitle( self.__class__.__name__ )
-        #self.setGeometry( 0, 0, 640, 500 )
-
         self.init_layout()
-
-        #self.setWindowFlags( self.windowFlags() )
 
         # Show the window
         self.show()
@@ -73,11 +63,6 @@ class VidStreamer( QWidget ):
                combo.setCurrentIndex( i )
                self.device = '/dev/{0}'.format( device )
         combo.activated[str].connect( self.comboChanged )
-
-        resolution = QComboBox( self )
-        for res in self.resolutions:
-            resolution.addItem( res )
-        resolution.activated[str].connect( self.resolutionChanged )
 
         # Buttons        
         self.stream_btn = QPushButton( self, objectName='stream_btn' )
@@ -107,7 +92,6 @@ class VidStreamer( QWidget ):
         self.frame.setStyleSheet( style )
         layout_ctrl.addWidget( self.stream_btn )
         layout_ctrl.addWidget( self.stop_btn )
-        layout_ctrl.addWidget( resolution )
         layout_ctrl.addWidget( combo )
         self.frame.setLayout( layout_ctrl )
 
@@ -157,18 +141,13 @@ class VidStreamer( QWidget ):
         self.nowplaying.setGeometry( QRect( self.frame.pos().x(), 0, 640, 480 ) )
         self.nowplaying.setFixedHeight( 240 )
         self.nowplaying.setFixedWidth( 360 )
-
         layout_mntr.addWidget( self.nowplaying )
 
         # Add layouts to main layout
         layout_sxs.addLayout( layout_list )
         layout_sxs.addLayout( layout_mntr )
-
         layout_main.addLayout( layout_sxs )
         layout_main.addWidget( self.frame )
-
-
-        #self.setAttribute( Qt.WA_TranslucentBackground )
         self.setLayout( layout_main )
         
     def add( self ):
@@ -180,28 +159,23 @@ class VidStreamer( QWidget ):
     def find( self ):
         print( 'Sources: ', sources )
         thread = QThread()
-        worker = SourceUpdater()
+        worker = SourceUpdater( '.' )
         worker.moveToThread( thread )
-        thread.started.connect( lambda : worker.discover( '.' ) )
+        thread.started.connect( lambda : worker.discover() )
         worker.updated.connect( self.update_sources )
         worker.finished.connect( thread.quit )
         worker.finished.connect( worker.deleteLater )
         thread.finished.connect( thread.deleteLater )
         self.src_threads.append( thread )
         thread.start()
+        print( 'Thread started' )
 
     def update_sources(self):
         print( 'Updating sources' )
         self.mediafiles.clear()
-        icon = 'icons/export/32x32/cog.png'
         for i, path in enumerate( sources ):
-            print( os.path.basename( path ) )
             item = QStandardItem( path )
             self.mediafiles.appendRow( item )
-            item.setData( QIcon( icon ), Qt.DecorationRole )
-        # Clean up the thread
-        print( 'done' )
-
         
     def stream( self ):
         if not self.streamer.isStreaming():
@@ -221,20 +195,6 @@ class VidStreamer( QWidget ):
     def comboChanged( self, text ):
         self.stop()
         self.device = '/dev/{0}'.format( text )
-
-    def resolutionChanged( self, text ):
-        self.stop()
-        res = text.split( 'x' )
-        self.res_w = int( res[0] )
-        self.res_h = int( res[1] )
-
-    def debug_frustum( self ):
-        print( 'Window: {0}, {1}x{2}'.format( self.pos(), self.width(), self.height() ) )
-        print( 'Status: {0}'.format( self.title_bar_h ) )
-        print( 'Device: {0}'.format( self.device ) )
-
-    def update_frustum( self ):
-        self.debug_frustum()
         self.streamer.device = self.device
 
     def closeEvent( self, event ):
@@ -252,15 +212,17 @@ class SourceUpdater( QObject ):
     finished = pyqtSignal()
     updated  = pyqtSignal()
 
-    def discover( self, dirname ):
-        print( 'Discovering media')
+    def __init__( self, path ):
+        super( SourceUpdater, self ).__init__()
+        self.path = path 
+
+    def discover( self ):
         global sources
-        mutex.lock()
-        sources = fsutil.find( dirname, media_types )
+#        mutex.lock()
+        sources = fsutil.find( self.path, media_types )
         self.updated.emit()
-        mutex.unlock()
+#        mutex.unlock()
         self.finished.emit()
-        print( '{0} finished'.format( __class__.__name__ ) )
         
 class DeskStreamer( QObject ):
     finished = pyqtSignal()
