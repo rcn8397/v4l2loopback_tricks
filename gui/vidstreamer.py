@@ -123,9 +123,17 @@ class VidStreamer( QWidget ):
         rm_btn.setText( '-' )
         rm_btn.clicked.connect( self.remove )
 
+        hspacer = QSpacerItem( rm_btn.pos().x() + 10, rm_btn.pos().y(), QSizePolicy.Expanding, QSizePolicy.Minimum )
+
+        prev_btn = QPushButton( self, objectName='prev_btn' )
+        prev_btn.setText( 'p' )
+        prev_btn.clicked.connect( lambda : self.log.append( 'Preview' ) )
+
         layout_lbtn.addWidget( self.find_btn )
         layout_lbtn.addWidget( add_btn )
         layout_lbtn.addWidget( rm_btn )
+        layout_lbtn.addItem( hspacer )
+        layout_lbtn.addWidget( prev_btn )
         layout_lbtn.setContentsMargins( 0,0,0,0)
 
         self.progressBar = QProgressBar( self )
@@ -152,6 +160,7 @@ class VidStreamer( QWidget ):
         layout_list.addWidget( self.progressBar )
 
         self.nowplaying = QLabel( self, objectName='now_playing' )
+        self.preview    = QLabel( self, objectName='preview' )
         style='''
         QLabel{
         background-color: orange;
@@ -159,12 +168,20 @@ class VidStreamer( QWidget ):
         QLabel#now_playing{
         border:5px solid cyan;
         }
+        QLabel#preview{
+        border:5px solid green;
+        }
         '''
         self.nowplaying.setStyleSheet( style )
-        self.nowplaying.setGeometry( QRect( self.frame.pos().x(), 0, 640, 480 ) )
         self.nowplaying.setFixedHeight( 240 )
         self.nowplaying.setFixedWidth( 360 )
+
+        self.preview.setStyleSheet( style )
+        self.preview.setFixedHeight( 240 )
+        self.preview.setFixedWidth( 360 )
+               
         layout_mntr.addWidget( self.nowplaying )
+        layout_mntr.addWidget( self.preview )
 
         # Log output
         self.log = QTextEdit()
