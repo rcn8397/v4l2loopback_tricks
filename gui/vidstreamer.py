@@ -33,7 +33,7 @@ mutex   = QMutex()
 class VidStreamer( QWidget ):
     resize_signal  = pyqtSignal(int)
     sig_abort_workers = pyqtSignal()
-    
+
     def __init__( self ):
         super().__init__()
         self.title_bar_h   = self.style().pixelMetric( QStyle.PM_TitleBarHeight )
@@ -79,7 +79,7 @@ class VidStreamer( QWidget ):
                self.device = '/dev/{0}'.format( device )
         combo.activated[str].connect( self.comboChanged )
 
-        # Buttons        
+        # Buttons
         self.stream_btn = QPushButton( self, objectName='stream_btn' )
         self.stream_btn.setText( 'Stream' )
         self.stream_btn.clicked.connect( self.stream )
@@ -87,7 +87,7 @@ class VidStreamer( QWidget ):
         self.stop_btn = QPushButton( self, objectName='stop_btn' )
         self.stop_btn.setText( 'Stop' )
         self.stop_btn.clicked.connect( self.stop )
-        
+
         self.frame = QFrame(self )
         style='''
         QPushButton{
@@ -128,11 +128,10 @@ class VidStreamer( QWidget ):
         layout_lbtn.addWidget( rm_btn )
         layout_lbtn.setContentsMargins( 0,0,0,0)
 
-        #self.progress = QTextEdit()
         self.progressBar = QProgressBar( self )
         #self.progressBar.setGeometry(QtCore.QRect(10, 260, 381, 23))
         self.progressBar.setValue(0)
-                
+
         self.playlist   = QListView( self )
         self.mediafiles = QStandardItemModel()
         self.playlist.setModel( self.mediafiles )
@@ -177,13 +176,13 @@ class VidStreamer( QWidget ):
         layout_main.addWidget( self.frame )
         layout_main.addWidget( self.log )
         self.setLayout( layout_main )
-        
+
     def add( self ):
         self.log.append('add' )
 
     def remove( self ):
         self.log.append( 'remove' )
-        
+
     def find( self ):
         self.progressBar.setValue( 0 )
         self.log.append( 'Sources: {0}'.format( sources ) )
@@ -192,10 +191,10 @@ class VidStreamer( QWidget ):
         self.__updaters = []
         thread = QThread()
         thread.setObjectName( 'Updater' )
-        worker = SourceUpdater( 0 )
+        worker = SourceUpdater( 0, self.dirname )
         # Keep references to worker and thread to avoid garbage collection
         self.__updaters.append( ( thread, worker ) )
-        worker.moveToThread( thread )        
+        worker.moveToThread( thread )
 
         # Connect signals
         worker.sig_step.connect( self.discover_step )
@@ -203,23 +202,32 @@ class VidStreamer( QWidget ):
         worker.sig_msg.connect(  self.log.append )
         self.sig_abort_workers.connect( worker.abort )
 
-        thread.started.connect( worker.discover )        
+        thread.started.connect( worker.discover )
         thread.start()
         self.log.append( 'Thread started' )
 
     @pyqtSlot( int, int )
     def discover_step( self, worker_id: int, data: int ):
-        self.log.append( 'Worker #{}: {}'.format(worker_id, data) )
         self.progressBar.setValue( data )
-        #self.progress.append( '{}: {}'.format(worker_id, data) )
 
     @pyqtSlot( int )
     def discover_done( self, worker_id ):
-
-        self.log.append( 'worker #{} done'.format(worker_id) )
+        self.log.append( 'worker #{} finsihed'.format(worker_id) )
         self.progressBar.setValue( 100 )
-        #self.progress.append( '-- Worker {} DONE'.format(worker_id) )
         self.find_btn.setEnabled( True )
+
+        # Update the list view
+        self.log.append( 'Updating sources' )
+        self.mediafiles.clear()
+        for i, path in enumerate( sources ):
+            item = QStandardItem( path )
+            self.mediafiles.appendRow( item )
+
+        # Clean up the thread
+        for thread, work in self.__updaters:
+            thread.quit()
+            thread.wait()
+        self.log.append( 'All updaters exited' )
 
     @pyqtSlot()
     def abort_discover( self ):
@@ -230,13 +238,6 @@ class VidStreamer( QWidget ):
             thread.wait()
         self.log.append( 'All updaters exited' )
 
-    def update_sources(self):
-        self.log.append( 'Updating sources' )
-        self.mediafiles.clear()
-        for i, path in enumerate( sources ):
-            item = QStandardItem( path )
-            self.mediafiles.appendRow( item )
-        
     def stream( self ):
         if not self.streamer.isStreaming():
             self.stream_btn.setStyleSheet( 'background-color: grey;' )
@@ -251,7 +252,7 @@ class VidStreamer( QWidget ):
 
     def directoryChanged( self, text ):
         self.dirname = text
-        
+
     def comboChanged( self, text ):
         self.stop()
         self.device = '/dev/{0}'.format( text )
@@ -273,10 +274,12 @@ class SourceUpdater( QObject ):
     sig_done = pyqtSignal(int)      # Id, end of job
     sig_msg  = pyqtSignal(str)      # msg to user
 
-    def __init__( self, id:int ):
+    def __init__( self, id:int, path:str, excludes = ['.git', '.svn'] ):
         super( SourceUpdater, self ).__init__()
         self.__id = id
         self.__abort = False
+        self.__path  = path
+        self.__excludes = excludes
 
     @pyqtSlot()
     def discover( self ):
@@ -285,14 +288,36 @@ class SourceUpdater( QObject ):
         thread_id   = int( QThread.currentThreadId() )
         msg = 'Running worker #{} from thread "{}" (#{})'.format(self.__id, thread_name, thread_id)
         self.sig_msg.emit(msg)
-        for step in range(100):
-            time.sleep(0.1)
-            self.sig_step.emit( self.__id, int( step ) )
-            # Check for abort
-            if self.__abort:
-                msg = 'Worker #{} aborting work at step {}'.format(self.__id, step)
-                self.sig_msg.emit(msg)
-                break
+
+        is_xcl = lambda x, xcl : any( e in x for e in xcl )
+        is_ext = lambda f, ext : any( f.endswith( e ) for e in ext )
+
+        self.sig_msg.emit( 'Clearing sources' )
+        sources.clear()
+
+        fcnt = 0
+        self.sig_msg.emit( 'Searching...' )
+        for root, dirs, files in os.walk( self.__path ):#, topdown=True ):
+            files= [ f for f in files if not f.startswith( '.' ) ]
+            dirs = [ d for d in dirs  if not d.startswith( '.' ) ]
+            if is_xcl( root, self.__excludes ):
+                # Skip excluded directories
+                #self.sig_msg.emit( 'Skipping: {}'.format( root ) )
+                continue
+
+            for fname in files:
+                fcnt += 1
+                self.sig_msg.emit( 'checking root={}, file={}'.format(root, fname ) )
+                self.sig_step.emit( 0, fcnt )
+                if is_ext( fname.lower(), media_types ):
+                    path = os.path.join( root, fname )
+                    sources.append( path )
+
+                # Check for abort
+                if self.__abort:
+                    self.sig_msg.emit('Aborting')
+                    break
+
         self.sig_done.emit( self.__id )
 
     def abort( self ):
@@ -300,7 +325,7 @@ class SourceUpdater( QObject ):
         self.sig_msg.emit( msg )
         self.__abort = True
 
-        
+
 class MediaStreamer( QObject ):
     finished = pyqtSignal()
 
