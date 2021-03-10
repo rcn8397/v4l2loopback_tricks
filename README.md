@@ -49,7 +49,7 @@ or
 
     python ./scripts/mktstsrc.py
     
-# StreamSCope
+# StreamScope
 A simple program to help me dial in where/what gets stream on the desktop. Note this requires PyQt5 to be installed.
 
     ./gui/streamscope.py
