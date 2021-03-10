@@ -42,8 +42,11 @@ class VidStreamer( QWidget ):
         self.devices       = get_video_devices()
         self.device        = '/dev/{0}'.format( self.devices[0] )
 
+        self.selected_media = None
+
         # Threading: Media updaters
         self.__updaters      = None
+        self.__previews      = None
 
         # Threading: Streamer
         self.stream_thread = QThread(parent=self)
@@ -125,15 +128,16 @@ class VidStreamer( QWidget ):
 
         hspacer = QSpacerItem( rm_btn.pos().x() + 10, rm_btn.pos().y(), QSizePolicy.Expanding, QSizePolicy.Minimum )
 
-        prev_btn = QPushButton( self, objectName='prev_btn' )
-        prev_btn.setText( 'p' )
-        prev_btn.clicked.connect( lambda : self.log.append( 'Preview' ) )
+        self.prev_btn = QPushButton( self, objectName='prev_btn' )
+        self.prev_btn.setText( 'p' )
+        self.prev_btn.clicked.connect( self.preview )
+        self.prev_btn.setDisabled( True )
 
         layout_lbtn.addWidget( self.find_btn )
         layout_lbtn.addWidget( add_btn )
         layout_lbtn.addWidget( rm_btn )
         layout_lbtn.addItem( hspacer )
-        layout_lbtn.addWidget( prev_btn )
+        layout_lbtn.addWidget( self.prev_btn )
         layout_lbtn.setContentsMargins( 0,0,0,0)
 
         self.progressBar = QProgressBar( self )
@@ -143,6 +147,7 @@ class VidStreamer( QWidget ):
         self.playlist   = QListView( self )
         self.mediafiles = QStandardItemModel()
         self.playlist.setModel( self.mediafiles )
+        self.playlist.clicked.connect( self.selectionChanged )
 
         directories = QComboBox( self )
         home = os.path.expanduser( '~/' )
@@ -179,7 +184,7 @@ class VidStreamer( QWidget ):
         self.preview.setStyleSheet( style )
         self.preview.setFixedHeight( 240 )
         self.preview.setFixedWidth( 360 )
-               
+
         layout_mntr.addWidget( self.nowplaying )
         layout_mntr.addWidget( self.preview )
 
@@ -199,6 +204,39 @@ class VidStreamer( QWidget ):
 
     def remove( self ):
         self.log.append( 'remove' )
+
+    def preview( self ):
+        self.log.append( 'preview' )
+        self.prev_btn.setDisabled( True )
+
+        self.__previews = []
+        thread = QThread()
+        thread.setObjectName( 'Preview' )
+        worker = PreviewSource( 0, self.selected_media )
+
+        # Keep references to workers and threads to avoid GC
+        self.__previews.append( (thread, worker ) )
+        worker.moveToThread( thread )
+
+        # Connect signals
+        worker.sig_step.connect( self.preview_step )
+        worker.sig_done.connect( self.preview_done )
+        worker.sig_msg.connect( self.log.append )
+        self.sig_abort_workers.connect( worker.abort )
+
+        thread.started.connect( worker.preview )
+        thread.start()
+        self.log.append( 'Preview thread started' )
+
+    @pyqtSlot( int, int )
+    def preview_step( self, worker_id: int, data: int ):
+        self.progressBar.setValue( data ) # remove me later
+
+    @pyqtSlot( int )
+    def preview_done( self, worker_id ):
+        self.log.append( 'Preview worker #{} finsihed'.format(worker_id) )
+        self.prev_btn.setEnabled( True )
+
 
     def find( self ):
         self.progressBar.setValue( 0 )
@@ -240,6 +278,13 @@ class VidStreamer( QWidget ):
             item = QStandardItem( path )
             self.mediafiles.appendRow( item )
 
+        # Default to the zeroth item
+        item = self.mediafiles.index( 0, 0 )
+        model = self.playlist.selectionModel()
+        model.select( item, QItemSelectionModel.Select)
+        self.selected_media = item.data()
+        self.log.append( 'Queued: {}'.format( self.selected_media ) )
+
         # Clean up the thread
         for thread, work in self.__updaters:
             thread.quit()
@@ -267,6 +312,10 @@ class VidStreamer( QWidget ):
             self.stop_btn.setStyleSheet( 'background-color: white;')
             self.streamer.stop()
 
+    def selectionChanged( self, index ):
+        self.log.append( 'Queued: {}'.format(index.data()))
+        self.selected_media = index.data()
+
     def directoryChanged( self, text ):
         self.dirname = text
 
@@ -285,6 +334,38 @@ class VidStreamer( QWidget ):
         self.stream_thread.quit()
         self.stream_thread.wait()
 
+class PreviewSource( QObject ):
+    sig_step = pyqtSignal(int,int)  # Id, step description
+    sig_done = pyqtSignal(int)      # Id, end of job
+    sig_msg  = pyqtSignal(str)      # msg to user
+
+    def __init__( self, id:int, path:str ):
+        super( PreviewSource, self ).__init__()
+        self.__id = id
+        self.__abort = False
+        self.__path  = path
+
+    @pyqtSlot()
+    def preview( self ):
+        ''' Perform task '''
+        thread_name = QThread.currentThread().objectName()
+        thread_id   = int( QThread.currentThreadId() )
+        msg = 'Running preview worker #{} from thread "{}" (#{})'.format(self.__id, thread_name, thread_id)
+        self.sig_msg.emit(msg)
+
+        for i in range( 10 ):
+            self.sig_msg.emit( 'Preview {}'.format( i ) )
+            self.sig_step.emit( i )
+            # Check for abort
+            if self.__abort:
+                self.sig_msg.emit('Aborting')
+                break
+        self.sig_done.emit( self.__id )
+
+    def abort( self ):
+        msg = 'Preview #{} notified to abort'.format(self.__id)
+        self.sig_msg.emit( msg )
+        self.__abort = True
 
 class SourceUpdater( QObject ):
     sig_step = pyqtSignal(int,int) # Id, step description
