@@ -7,9 +7,13 @@ from v4l2tricks.stream    import stream_media
 from v4l2tricks.supported import MediaContainers
 from v4l2tricks           import fsutil
 from v4l2tricks.ffmpeg_if import create_test_src
+from v4l2tricks.ffmpeg_if import create_sine_src
 
 def main( args ):
-    create_test_src(args.path, duration = args.time_duration )
+    if args.sine:
+        create_sine_src(args.path, freq = args.freq, duration = args.time_duration )
+    else:
+        create_test_src(args.path, duration = args.time_duration )
     
 # Standard biolerplate to call the main() function to begin the program
 if __name__ == '__main__':
@@ -21,6 +25,14 @@ if __name__ == '__main__':
     parser.add_argument( '-t', '--time-duration',
                          help   = 'Duration of the test source(defaults: 6 min)',
                          default = 600 )
+    parser.add_argument( '-f', '--freq',
+                         help   = 'Frequency for sine source(defaults: 1000Hz)',
+                         default = 1000 )
+
+    parser.add_argument( '-s', '--sine',
+                         help   = 'Create since source', 
+                         action ='store_true' )
+
     parser.add_argument( '-v', '--verbose',
                          help   = 'Increase verbosity',
                          action ='store_true' )
