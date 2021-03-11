@@ -265,6 +265,15 @@ def generate_thumbnail(in_filename, out_filename, time=0.1, width=120):
         print(str( e ) )#e.stderr.decode(), file=sys.stderr)
         sys.exit(1)
 
+
+def probe_duration( fname ):
+    '''
+    Retrieve the media files duration
+    '''
+    probe = ffmpeg.probe(fname)
+    video_info = next(s for s in probe['streams'] if s['codec_type'] == 'video')
+    return( float(video_info['duration']) )
+    
 def probe( fname ):
     probe = ffmpeg.probe(fname)
     video_info = next(s for s in probe['streams'] if s['codec_type'] == 'video')
@@ -316,6 +325,7 @@ def create_test_src(path='./testsrc.mp4', duration = 30):
         .run_async( pipe_stdout = True, pipe_stdin = False)
         )
     out, err = process.communicate()
+
 
 # Main
 def main():
