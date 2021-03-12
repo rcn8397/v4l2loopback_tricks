@@ -21,7 +21,7 @@ def test_thumbnail():
         print( 'Generating preview {} @ {} seconds: {}'.format( step, outpath, ts ) )
         ffmpeg_if.generate_thumbnail( m , outpath, time = ts )
 
-    ffmpeg_if.jpg2gif( 'preview_%03d.jpg' )
+    ffmpeg_if.jpgs2gif( 'preview_%03d.jpg' )
 
 def test_probe():
     print( ffmpeg_if.probe( m ) )
