@@ -262,9 +262,8 @@ def generate_thumbnail(in_filename, out_filename, time=0.1, width=120):
             .run(capture_stdout=True, capture_stderr=True)
         )
     except ffmpeg.Error as e:
-        print(str( e ) )#e.stderr.decode(), file=sys.stderr)
-        sys.exit(1)
-
+        print( 'borked' )
+        return (str( e ) )#e.stderr.decode(), file=sys.stderr)
 
 def probe_duration( fname ):
     '''

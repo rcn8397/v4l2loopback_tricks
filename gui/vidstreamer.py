@@ -9,7 +9,8 @@ from PyQt5.QtWidgets import *
 # Setup imports from module
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from v4l2tricks.stream import stream_media
+from v4l2tricks.stream    import stream_media
+from v4l2tricks.ffmpeg_if import generate_thumbnail, probe_duration
 from v4l2tricks.supported import MediaContainers
 from v4l2tricks           import fsutil
 
@@ -161,7 +162,6 @@ class VidStreamer( QWidget ):
         layout_list.addWidget( directories )
         layout_list.addWidget( self.playlist )
         layout_list.addLayout( layout_lbtn )
-        #layout_list.addWidget( self.progress )
         layout_list.addWidget( self.progressBar )
 
         self.nowplaying = QLabel( self, objectName='now_playing' )
@@ -228,14 +228,23 @@ class VidStreamer( QWidget ):
         thread.start()
         self.log.append( 'Preview thread started' )
 
-    @pyqtSlot( int, int )
-    def preview_step( self, worker_id: int, data: int ):
+    @pyqtSlot( int )
+    def preview_step( self, data: int ):
         self.progressBar.setValue( data ) # remove me later
 
     @pyqtSlot( int )
     def preview_done( self, worker_id ):
         self.log.append( 'Preview worker #{} finsihed'.format(worker_id) )
         self.prev_btn.setEnabled( True )
+
+        # Update preview
+
+
+        # Clean up the thread
+        for thread, work in self.__previews:
+            thread.quit()
+            thread.wait()
+        self.log.append( 'All previews exited' )
 
 
     def find( self ):
@@ -284,6 +293,7 @@ class VidStreamer( QWidget ):
         model.select( item, QItemSelectionModel.Select)
         self.selected_media = item.data()
         self.log.append( 'Queued: {}'.format( self.selected_media ) )
+        self.prev_btn.setEnabled( True )
 
         # Clean up the thread
         for thread, work in self.__updaters:
@@ -335,7 +345,7 @@ class VidStreamer( QWidget ):
         self.stream_thread.wait()
 
 class PreviewSource( QObject ):
-    sig_step = pyqtSignal(int,int)  # Id, step description
+    sig_step = pyqtSignal(int)  # Id, step description
     sig_done = pyqtSignal(int)      # Id, end of job
     sig_msg  = pyqtSignal(str)      # msg to user
 
@@ -350,12 +360,24 @@ class PreviewSource( QObject ):
         ''' Perform task '''
         thread_name = QThread.currentThread().objectName()
         thread_id   = int( QThread.currentThreadId() )
-        msg = 'Running preview worker #{} from thread "{}" (#{})'.format(self.__id, thread_name, thread_id)
-        self.sig_msg.emit(msg)
+        
+        self.sig_msg.emit('Attempting to generation preview thumbnails')
+        self.sig_msg.emit('Media Selected: {}'.format( self.__path ) )
+        
+        duration = probe_duration( self.__path )
+        self.sig_msg.emit( 'duration: {}'.format( duration ) )
 
-        for i in range( 10 ):
-            self.sig_msg.emit( 'Preview {}'.format( i ) )
+        timestamp = lambda duration, step: ( ( duration/step ) - ( 0.5 * ( duration * 0.25 ) ) )
+
+        # Make 4 thumbnails for previewing
+        for i in range( 4, 0, -1 ):
+            step = 5 - i
+            ts = timestamp( duration, step )
+            outpath = '{}_{}.jpg'.format( 'preview', i )
+            self.sig_msg.emit( 'Generating preview {} @ {} seconds: {}'.format( step, outpath, ts ) )
+            generate_thumbnail( self.__path, outpath, time = ts )
             self.sig_step.emit( i )
+        
             # Check for abort
             if self.__abort:
                 self.sig_msg.emit('Aborting')
