@@ -246,7 +246,24 @@ class DesktopScopeProcess( StreamProcess ):
         self._proc = process
         self.process_sink()
 
+        
+def jpg2gif( pattern, framerate = 2, scale='360x240', out='out.gif' ):
+    '''
+    ffmpeg -f image2 -framerate 10 -i thumb/%001d.jpg -vf scale=480x240  out.gif
 
+    setting framerate to a larger number increases animation speed
+    '''
+    out, err = (
+        ffmpeg
+        .input( pattern, framerate=framerate, format='image2' )
+        .filter( 'scale', scale )
+        .output( out )
+        .overwrite_output()
+        .run( capture_stdout = False )
+        )
+    return out
+    
+        
 def generate_thumbnail(in_filename, out_filename, time=0.1, width=120):
     '''
     Directly from ffmpeg-python examples

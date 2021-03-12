@@ -17,9 +17,11 @@ def test_thumbnail():
     for i in range( 4, 0, -1 ):
         step = 5 - i
         ts = timestamp( duration, step )
-        outpath = '{}_{}.jpg'.format( 'preview', i )
+        outpath = '{}_{:03}.jpg'.format( 'preview', i )
         print( 'Generating preview {} @ {} seconds: {}'.format( step, outpath, ts ) )
         ffmpeg_if.generate_thumbnail( m , outpath, time = ts )
+
+    ffmpeg_if.jpg2gif( 'preview_%03d.jpg' )
 
 def test_probe():
     print( ffmpeg_if.probe( m ) )
