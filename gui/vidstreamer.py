@@ -62,7 +62,7 @@ class VidStreamer( QWidget ):
 
         self.setWindowTitle( self.__class__.__name__ )
 
-
+        #self.init_menu()
         self.init_layout()
         self.init_cache()
 
@@ -74,6 +74,16 @@ class VidStreamer( QWidget ):
         if not os.path.exists( cache ):
             self.log.append( 'Creating {} cache {}'.format( self.__class__.__name__, cache ) )
             fsutil.mkdir_p( cache )
+
+    def init_menu( self ):
+        menubar = QMenuBar( self )
+        
+        # Creating menu items
+        filemenu = QMenu( '&File', self )
+        menubar.addMenu( filemenu )
+        
+        editmenu = menubar.addMenu( '&Edit' )
+        helpmenu = menubar.addMenu( '&Help' )
 
     def init_layout( self ):
         layout_main = QVBoxLayout()
@@ -177,7 +187,7 @@ class VidStreamer( QWidget ):
         self.preview    = QLabel( self, objectName='preview' )
         style='''
         QLabel{
-        background-color: orange;
+        background-color: black;
         }
         QLabel#now_playing{
         border:5px solid cyan;
@@ -247,7 +257,12 @@ class VidStreamer( QWidget ):
         self.prev_btn.setEnabled( True )
 
         # Update preview
-
+        outdir  = os.path.join( cache, os.path.basename( self.selected_media ) )
+        preview = os.path.join( outdir, '{}.gif'.format( self.selected_media ) )
+        self.log.append( 'Looking for preview: {}, {}'.format( preview, os.path.exists( preview ) ) )
+        movie = QMovie( preview )
+        self.preview.setMovie( movie )
+        movie.start()
 
         # Clean up the thread
         for thread, work in self.__previews:
@@ -380,7 +395,7 @@ class PreviewSource( QObject ):
         increments = 4
         timestamp = lambda duration, step: ( ( duration/step ) - ( 0.5 * ( duration * 1.0/increments ) ) )
 
-        outdir = os.path.join( self.__root, os.path.basename( self.__path ) )#.replace('.','_')  ) )
+        outdir = os.path.join( self.__root, os.path.basename( self.__path ) )
         if not os.path.exists( outdir ):
             fsutil.mkdir_p( outdir )
 
