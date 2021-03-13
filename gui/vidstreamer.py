@@ -75,18 +75,45 @@ class VidStreamer( QWidget ):
             fsutil.mkdir_p( cache )
 
     def init_menu( self ):
+        layout = QHBoxLayout()
         menubar = QMenuBar( self )
-        
-        # Creating menu items
+
+        # File menu
         filemenu = QMenu( '&File', self )
         menubar.addMenu( filemenu )
-        
+        exitAct = QAction( QIcon(),'&Exit', self, )
+        exitAct.setStatusTip( 'Exit Application' )
+        exitAct.triggered.connect( self.exit )
+        filemenu.addAction( exitAct )
+
+        # Edit menu
         editmenu = menubar.addMenu( '&Edit' )
+
+        # Video Devices
+        devmenu  = editmenu.addMenu( '&Device' )
+        self.devgroup = QActionGroup( devmenu )
+        self.devgroup.setExclusive( True )
+        self.devgroup.triggered.connect( self.editDevice )
+        for i, device in enumerate( self.devices ):
+            print( device )
+            act = QAction( device, self, checkable = True )
+            location = '/dev/{0}'.format( device )
+            act.setStatusTip( location )
+            if device == 'video20':
+                act.setChecked( True )
+                self.device = '/dev/{0}'.format( device )
+            self.devgroup.addAction( act )
+            devmenu.addAction( act )
+
+        
+        # Help menu
         helpmenu = menubar.addMenu( '&Help' )
 
+        layout.addWidget( menubar )
+        return( layout )
+    
     def init_layout( self ):
         layout_main = QVBoxLayout()
-        layout_menu = QHBoxLayout()
         layout_sxs  = QHBoxLayout()
         layout_list = QVBoxLayout()
         layout_lbtn = QHBoxLayout()
@@ -95,18 +122,7 @@ class VidStreamer( QWidget ):
 
 
         # Menu Bar
-        menubar = QMenuBar( self )
-        filemenu = QMenu( '&File', self )
-        menubar.addMenu( filemenu )
-        exitAct = QAction( QIcon(),'&Exit', self, )
-        exitAct.setStatusTip( 'Exit Application' )
-        exitAct.triggered.connect( self.exit )
-        filemenu.addAction( exitAct )
-        
-        
-        editmenu = menubar.addMenu( '&Edit' )
-        helpmenu = menubar.addMenu( '&Help' )
-        layout_menu.addWidget( menubar )
+        layout_menu = self.init_menu()
 
         # Get video devices
         combo      = QComboBox( self )
@@ -362,6 +378,13 @@ class VidStreamer( QWidget ):
             self.stop_btn.setStyleSheet( 'background-color: white;')
             self.streamer.stop()
 
+    def editDevice( self, action ):
+        text = action.text()
+        self.stop()
+        self.device = '/dev/{0}'.format( text )
+        self.streamer.device = self.device
+        self.log.append( 'Changed video device: {}'.format( text ) )
+        
     def selectionChanged( self, index ):
         self.log.append( 'Queued: {}'.format(index.data()))
         self.selected_media = index.data()
@@ -373,6 +396,7 @@ class VidStreamer( QWidget ):
         self.stop()
         self.device = '/dev/{0}'.format( text )
         self.streamer.device = self.device
+        self.log.append( 'Changed video device: {}'.format( text ) )
 
     def closeEvent( self, event ):
         self.thread_clean_up()
