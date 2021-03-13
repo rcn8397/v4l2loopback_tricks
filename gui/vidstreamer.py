@@ -81,6 +81,28 @@ class VidStreamer( QWidget ):
         # File menu
         filemenu = QMenu( '&File', self )
         menubar.addMenu( filemenu )
+
+        # Delete this
+        test_it = lambda x : self.log.append( str( x ) )
+        # Open folder
+        foldAct = QAction( QIcon(),'&Open Folder', self )
+        foldAct.setStatusTip( 'Open Folder' )
+        foldAct.triggered.connect( lambda : test_it( 'folder' ) )
+        filemenu.addAction( foldAct )
+
+        # Add media
+        addAct = QAction( QIcon(), '&Add media', self )
+        addAct.setStatusTip( 'Add media to playlist' )
+        addAct.triggered.connect( lambda : test_it( 'add' ) )
+        filemenu.addAction( addAct )
+
+        # Add media
+        rmAct = QAction( QIcon(), '&Remove media', self )
+        rmAct.setStatusTip( 'Remove media from playlist' )
+        rmAct.triggered.connect( lambda : test_it( 'rm' ) )
+        filemenu.addAction( rmAct )
+
+        # Exit app
         exitAct = QAction( QIcon(),'&Exit', self, )
         exitAct.setStatusTip( 'Exit Application' )
         exitAct.triggered.connect( self.exit )
@@ -95,7 +117,6 @@ class VidStreamer( QWidget ):
         self.devgroup.setExclusive( True )
         self.devgroup.triggered.connect( self.editDevice )
         for i, device in enumerate( self.devices ):
-            print( device )
             act = QAction( device, self, checkable = True )
             location = '/dev/{0}'.format( device )
             act.setStatusTip( location )
@@ -104,7 +125,6 @@ class VidStreamer( QWidget ):
                 self.device = '/dev/{0}'.format( device )
             self.devgroup.addAction( act )
             devmenu.addAction( act )
-
         
         # Help menu
         helpmenu = menubar.addMenu( '&Help' )
@@ -123,15 +143,6 @@ class VidStreamer( QWidget ):
 
         # Menu Bar
         layout_menu = self.init_menu()
-
-        # Get video devices
-        combo      = QComboBox( self )
-        for i, device in enumerate( self.devices ):
-            combo.addItem( device )
-            if device == 'video20':
-               combo.setCurrentIndex( i )
-               self.device = '/dev/{0}'.format( device )
-        combo.activated[str].connect( self.comboChanged )
 
         # Buttons
         self.stream_btn = QPushButton( self, objectName='stream_btn' )
@@ -161,7 +172,6 @@ class VidStreamer( QWidget ):
         self.frame.setStyleSheet( style )
         layout_ctrl.addWidget( self.stream_btn )
         layout_ctrl.addWidget( self.stop_btn )
-        layout_ctrl.addWidget( combo )
         self.frame.setLayout( layout_ctrl )
 
         # Play list
@@ -391,12 +401,6 @@ class VidStreamer( QWidget ):
 
     def directoryChanged( self, text ):
         self.dirname = text
-
-    def comboChanged( self, text ):
-        self.stop()
-        self.device = '/dev/{0}'.format( text )
-        self.streamer.device = self.device
-        self.log.append( 'Changed video device: {}'.format( text ) )
 
     def closeEvent( self, event ):
         self.thread_clean_up()
