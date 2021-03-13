@@ -62,7 +62,6 @@ class VidStreamer( QWidget ):
 
         self.setWindowTitle( self.__class__.__name__ )
 
-        #self.init_menu()
         self.init_layout()
         self.init_cache()
 
@@ -87,11 +86,27 @@ class VidStreamer( QWidget ):
 
     def init_layout( self ):
         layout_main = QVBoxLayout()
+        layout_menu = QHBoxLayout()
         layout_sxs  = QHBoxLayout()
         layout_list = QVBoxLayout()
         layout_lbtn = QHBoxLayout()
         layout_ctrl = QHBoxLayout()
         layout_mntr = QVBoxLayout()
+
+
+        # Menu Bar
+        menubar = QMenuBar( self )
+        filemenu = QMenu( '&File', self )
+        menubar.addMenu( filemenu )
+        exitAct = QAction( QIcon(),'&Exit', self, )
+        exitAct.setStatusTip( 'Exit Application' )
+        exitAct.triggered.connect( self.exit )
+        filemenu.addAction( exitAct )
+        
+        
+        editmenu = menubar.addMenu( '&Edit' )
+        helpmenu = menubar.addMenu( '&Help' )
+        layout_menu.addWidget( menubar )
 
         # Get video devices
         combo      = QComboBox( self )
@@ -213,6 +228,7 @@ class VidStreamer( QWidget ):
         # Add layouts to main layout
         layout_sxs.addLayout( layout_list )
         layout_sxs.addLayout( layout_mntr )
+        layout_main.addLayout( layout_menu )
         layout_main.addLayout( layout_sxs )
         layout_main.addWidget( self.frame )
         layout_main.addWidget( self.log )
@@ -361,6 +377,10 @@ class VidStreamer( QWidget ):
     def closeEvent( self, event ):
         self.thread_clean_up()
         super().closeEvent( event )
+
+    def exit( self ):
+        self.thread_clean_up()
+        qApp.quit()
 
     def thread_clean_up( self ):
         print( 'Cleaning up thread' )
