@@ -260,7 +260,7 @@ def jpgs2gif( pattern, out='out.gif', framerate = 2 ): #scale='360x240', ):
         #.filter( 'scale', scale )
         .output( out)
         .overwrite_output()
-        .run( capture_stdout = False )
+        .run( capture_stdout = True )
         )
     return out
     

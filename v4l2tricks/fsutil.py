@@ -4,6 +4,18 @@
 
 import os
 
+def mkdir_p( path ):
+    '''
+    mkdir -p functional equivalent
+    '''
+    try:
+        os.makedirs( path )
+    except OSError as e:
+        if e.errno == errno.EEXIST and os.path.isdir( path ):
+            pass
+        else:
+            raise
+
 def discover( path, patterns, excludes =['.git', '.svn'] ):
      is_xcl = lambda x, xcl : any( e in x for e in xcl )
      is_ext = lambda f, ext : any( f.endswith( e ) for e in ext )

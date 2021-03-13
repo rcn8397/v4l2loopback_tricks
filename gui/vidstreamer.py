@@ -10,7 +10,7 @@ from PyQt5.QtWidgets import *
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from v4l2tricks.stream    import stream_media
-from v4l2tricks.ffmpeg_if import generate_thumbnail, probe_duration
+from v4l2tricks.ffmpeg_if import generate_thumbnail, jpgs2gif, probe_duration
 from v4l2tricks.supported import MediaContainers
 from v4l2tricks           import fsutil
 
@@ -28,6 +28,7 @@ get_video_devices = lambda : [ dev for dev in os.listdir('/dev') if 'video' in d
 containers  = MediaContainers()
 media_types = containers.extensions()
 
+cache   = os.path.expanduser( '~/.v4l2tricks' )
 sources = list()
 mutex   = QMutex()
 
@@ -60,11 +61,19 @@ class VidStreamer( QWidget ):
         self.stream_thread.started.connect( self.streamer.long_running )
 
         self.setWindowTitle( self.__class__.__name__ )
+
+
         self.init_layout()
+        self.init_cache()
 
         # Show the window
         self.show()
 
+
+    def init_cache( self ):
+        if not os.path.exists( cache ):
+            self.log.append( 'Creating {} cache {}'.format( self.__class__.__name__, cache ) )
+            fsutil.mkdir_p( cache )
 
     def init_layout( self ):
         layout_main = QVBoxLayout()
@@ -351,37 +360,52 @@ class PreviewSource( QObject ):
 
     def __init__( self, id:int, path:str ):
         super( PreviewSource, self ).__init__()
-        self.__id = id
+        self.__id    = id
         self.__abort = False
         self.__path  = path
+        self.__root  = cache
 
     @pyqtSlot()
     def preview( self ):
         ''' Perform task '''
         thread_name = QThread.currentThread().objectName()
         thread_id   = int( QThread.currentThreadId() )
-        
+
         self.sig_msg.emit('Attempting to generation preview thumbnails')
         self.sig_msg.emit('Media Selected: {}'.format( self.__path ) )
-        
+
         duration = probe_duration( self.__path )
         self.sig_msg.emit( 'duration: {}'.format( duration ) )
 
-        timestamp = lambda duration, step: ( ( duration/step ) - ( 0.5 * ( duration * 0.25 ) ) )
+        increments = 4
+        timestamp = lambda duration, step: ( ( duration/step ) - ( 0.5 * ( duration * 1.0/increments ) ) )
+
+        outdir = os.path.join( self.__root, os.path.basename( self.__path ) )#.replace('.','_')  ) )
+        if not os.path.exists( outdir ):
+            fsutil.mkdir_p( outdir )
 
         # Make 4 thumbnails for previewing
-        for i in range( 4, 0, -1 ):
-            step = 5 - i
+        for i in range( increments, 0, -1 ):
+            step = (increments + 1) - i
             ts = timestamp( duration, step )
-            outpath = '{}_{}.jpg'.format( 'preview', i )
-            self.sig_msg.emit( 'Generating preview {} @ {} seconds: {}'.format( step, outpath, ts ) )
+
+            outfile= '{}_{:03}.jpg'.format( 'preview', i )
+            outpath = os.path.join( outdir, outfile )
+            self.sig_msg.emit( 'Generating preview {}: {} @ {} seconds'.format( step, outpath, ts ) )
             generate_thumbnail( self.__path, outpath, time = ts )
             self.sig_step.emit( i )
-        
+
             # Check for abort
             if self.__abort:
                 self.sig_msg.emit('Aborting')
                 break
+
+        # Generate a gif from the previews
+        preview = os.path.join( outdir, '{}.gif'.format( self.__path ) )
+        pattern = os.path.join( outdir, 'preview_%03d.jpg' )
+        self.sig_msg.emit( 'Generating preview: {} from {}'.format( preview, pattern ) )
+        jpgs2gif( pattern, out = preview )
+
         self.sig_done.emit( self.__id )
 
     def abort( self ):
