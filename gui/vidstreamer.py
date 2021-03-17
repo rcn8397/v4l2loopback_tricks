@@ -32,6 +32,93 @@ cache   = os.path.expanduser( '~/.v4l2tricks' )
 sources = list()
 mutex   = QMutex()
 
+class FileDialog(QWidget):
+    '''FileDialog '''
+    def __init__(self, dialog_type = 'Open', title = 'File Dialog'):
+        super().__init__()
+        self.title  = title
+        self.left   = 0
+        self.top    = 0
+        self.width  = 640
+        self.height = 480
+        self._type  = dialog_type
+        self._paths = []
+        self.initUI()
+    
+    def initUI(self):
+        self.setWindowTitle(self.title)
+        self.setGeometry(self.left, self.top, self.width, self.height)
+
+        try:
+            dialog = { 'Open' : self.openFileNameDialog,
+                       'Opens': self.openFileNamesDialog,
+                       'Opend': self.openDirNameDialog,
+                       'Save' : self.saveFileDialog } [ self._type ]
+        except KeyError as e:
+            print( str( e ) )
+
+        dialog()
+        
+        self.show()
+
+    def openDirNameDialog( self ):
+        options = QFileDialog.Options()
+        options |= QFileDialog.DontUseNativeDialog
+        options |= QFileDialog.ShowDirsOnly
+        dirName = QFileDialog.getExistingDirectory( self,
+                                                    'Select Directory',
+                                                    options=options )
+        self._paths = []
+        if dirName:
+            self._paths.append( dirName )
+        
+    def openFileNameDialog(self):
+        options = QFileDialog.Options()
+        options |= QFileDialog.DontUseNativeDialog
+        fileName, _ = QFileDialog.getOpenFileName(self,"Open File", "","All Files (*);;Python Files (*.py)", options=options)
+        self._paths = []
+        if fileName:
+            self._paths.append( fileName )
+    
+    def openFileNamesDialog(self):
+        options = QFileDialog.Options()
+        options |= QFileDialog.DontUseNativeDialog
+        files, _ = QFileDialog.getOpenFileNames(self,"Open Files", "","All Files (*);;Python Files (*.py)", options=options)
+        self._paths = []
+        if files:
+            self._paths = files
+    
+    def saveFileDialog(self):
+        options = QFileDialog.Options()
+        options |= QFileDialog.DontUseNativeDialog
+        fileName, _ = QFileDialog.getSaveFileName(self,"Save File","","All Files (*);;Text Files (*.txt)", options=options)
+        self._paths = []
+        if fileName:
+            self._paths.append( fileName )
+
+    @property
+    def path( self ):
+        p = None
+        try:
+            p = self._paths[0]
+        except Exception as e:
+            pass
+        return p
+
+    @path.setter
+    def path( self, p ):
+        self._paths = []
+        self._paths.append( p )
+    
+    @property
+    def paths( self ):
+        return self._paths
+
+    @paths.setter
+    def paths( self, l ):
+        self._paths = l
+
+
 class VidStreamer( QWidget ):
     resize_signal  = pyqtSignal(int)
     sig_abort_workers = pyqtSignal()
@@ -84,6 +171,7 @@ class VidStreamer( QWidget ):
 
         # Delete this
         test_it = lambda x : self.log.append( str( x ) )
+
         # Open folder
         foldAct = QAction( QIcon(),'&Open Folder', self )
         foldAct.setStatusTip( 'Open Folder' )
@@ -93,13 +181,13 @@ class VidStreamer( QWidget ):
         # Add media
         addAct = QAction( QIcon(), '&Add media', self )
         addAct.setStatusTip( 'Add media to playlist' )
-        addAct.triggered.connect( lambda : test_it( 'add' ) )
+        addAct.triggered.connect( self.add )
         filemenu.addAction( addAct )
 
-        # Add media
+        # Remove media
         rmAct = QAction( QIcon(), '&Remove media', self )
         rmAct.setStatusTip( 'Remove media from playlist' )
-        rmAct.triggered.connect( lambda : test_it( 'rm' ) )
+        rmAct.triggered.connect( self.remove )
         filemenu.addAction( rmAct )
 
         # Exit app
@@ -179,15 +267,15 @@ class VidStreamer( QWidget ):
         self.find_btn.setText( 'O' )
         self.find_btn.clicked.connect( self.find )
 
-        add_btn = QPushButton( self, objectName='add_btn' )
-        add_btn.setText( '+' )
-        add_btn.clicked.connect( self.add )
+        self.add_btn = QPushButton( self, objectName='add_btn' )
+        self.add_btn.setText( '+' )
+        self.add_btn.clicked.connect( self.add )
 
-        rm_btn = QPushButton( self, objectName='remove_btn' )
-        rm_btn.setText( '-' )
-        rm_btn.clicked.connect( self.remove )
+        self.rm_btn = QPushButton( self, objectName='remove_btn' )
+        self.rm_btn.setText( '-' )
+        self.rm_btn.clicked.connect( self.remove )
 
-        hspacer = QSpacerItem( rm_btn.pos().x() + 10, rm_btn.pos().y(), QSizePolicy.Expanding, QSizePolicy.Minimum )
+        hspacer = QSpacerItem( self.rm_btn.pos().x() + 10, self.rm_btn.pos().y(), QSizePolicy.Expanding, QSizePolicy.Minimum )
 
         self.prev_btn = QPushButton( self, objectName='prev_btn' )
         self.prev_btn.setText( 'p' )
@@ -195,8 +283,8 @@ class VidStreamer( QWidget ):
         self.prev_btn.setDisabled( True )
 
         layout_lbtn.addWidget( self.find_btn )
-        layout_lbtn.addWidget( add_btn )
-        layout_lbtn.addWidget( rm_btn )
+        layout_lbtn.addWidget( self.add_btn )
+        layout_lbtn.addWidget( self.rm_btn )
         layout_lbtn.addItem( hspacer )
         layout_lbtn.addWidget( self.prev_btn )
         layout_lbtn.setContentsMargins( 0,0,0,0)
@@ -210,16 +298,6 @@ class VidStreamer( QWidget ):
         self.playlist.setModel( self.mediafiles )
         self.playlist.clicked.connect( self.selectionChanged )
 
-        directories = QComboBox( self )
-        home = os.path.expanduser( '~/' )
-        directories.addItem( '.' )
-        directories.addItem( home )
-        for f in os.listdir( home ):
-            abs_path = os.path.join( home, f )
-            if os.path.isdir( abs_path ):
-                directories.addItem( abs_path  )
-        directories.activated[str].connect( self.directoryChanged )
-        layout_list.addWidget( directories )
         layout_list.addWidget( self.playlist )
         layout_list.addLayout( layout_lbtn )
         layout_list.addWidget( self.progressBar )
@@ -261,7 +339,25 @@ class VidStreamer( QWidget ):
         self.setLayout( layout_main )
 
     def add( self ):
-        self.log.append('add' )
+        self.log.append('Adding: ' )
+        add = FileDialog('Opens')
+
+        self.log.append( '{}'.format( add.paths ) )
+        if len( add.paths ) == 0:
+            return # Bail early
+
+        # Append the playlist
+        for path in add.paths:
+            item = QStandardItem( path )
+            self.mediafiles.appendRow( item )
+
+        # Default to the zeroth item
+        item  = self.mediafiles.index( 0, 0 )
+        model = self.playlist.selectionModel()
+        model.select( item, QItemSelectionModel.Select)
+        self.selected_media = item.data()
+        self.log.append( 'Queued: {}'.format( self.selected_media ) )
+        self.prev_btn.setEnabled( True )
 
     def remove( self ):
         self.log.append( 'remove' )
@@ -314,9 +410,19 @@ class VidStreamer( QWidget ):
 
 
     def find( self ):
+        folder = FileDialog('Opend')
+        self.log.append( '{}'.format( folder.path ) )
+        
+        if folder.path is None:
+            return # Bail early
+        else:
+            self.dirname = folder.path
+
         self.progressBar.setValue( 0 )
         self.log.append( 'Sources: {0}'.format( sources ) )
         self.find_btn.setDisabled( True )
+        self.add_btn.setDisabled( True )
+        self.rm_btn.setDisabled( True )
 
         self.__updaters = []
         thread = QThread()
@@ -345,6 +451,8 @@ class VidStreamer( QWidget ):
         self.log.append( 'worker #{} finsihed'.format(worker_id) )
         self.progressBar.setValue( 100 )
         self.find_btn.setEnabled( True )
+        self.add_btn.setEnabled( True )
+        self.rm_btn.setEnabled( True )
 
         # Update the list view
         self.log.append( 'Updating sources' )
@@ -398,9 +506,6 @@ class VidStreamer( QWidget ):
     def selectionChanged( self, index ):
         self.log.append( 'Queued: {}'.format(index.data()))
         self.selected_media = index.data()
-
-    def directoryChanged( self, text ):
-        self.dirname = text
 
     def closeEvent( self, event ):
         self.thread_clean_up()
