@@ -277,20 +277,13 @@ class VidStreamer( QWidget ):
 
         hspacer = QSpacerItem( self.rm_btn.pos().x() + 10, self.rm_btn.pos().y(), QSizePolicy.Expanding, QSizePolicy.Minimum )
 
-        self.prev_btn = QPushButton( self, objectName='prev_btn' )
-        self.prev_btn.setText( 'p' )
-        self.prev_btn.clicked.connect( self.preview )
-        self.prev_btn.setDisabled( True )
-
         layout_lbtn.addWidget( self.find_btn )
         layout_lbtn.addWidget( self.add_btn )
         layout_lbtn.addWidget( self.rm_btn )
         layout_lbtn.addItem( hspacer )
-        layout_lbtn.addWidget( self.prev_btn )
         layout_lbtn.setContentsMargins( 0,0,0,0)
 
         self.progressBar = QProgressBar( self )
-        #self.progressBar.setGeometry(QtCore.QRect(10, 260, 381, 23))
         self.progressBar.setValue(0)
 
         self.playlist   = QListView( self )
@@ -346,25 +339,31 @@ class VidStreamer( QWidget ):
         if len( add.paths ) == 0:
             return # Bail early
 
+        sources.extend( add.paths )
+        
         # Append the playlist
-        for path in add.paths:
+        self.log.append( 'Adding sources' )
+        self.mediafiles.clear()
+        for path in sources:
             item = QStandardItem( path )
             self.mediafiles.appendRow( item )
 
-        # Default to the zeroth item
-        item  = self.mediafiles.index( 0, 0 )
+        # Default to the item just added
+        rows  = self.mediafiles.rowCount()
+        item  = self.mediafiles.index( rows-1, 0 )
         model = self.playlist.selectionModel()
         model.select( item, QItemSelectionModel.Select)
         self.selected_media = item.data()
         self.log.append( 'Queued: {}'.format( self.selected_media ) )
-        self.prev_btn.setEnabled( True )
+
+        # Create a preview of the item selected.
+        self.create_preview()
 
     def remove( self ):
         self.log.append( 'remove' )
 
-    def preview( self ):
+    def create_preview( self ):
         self.log.append( 'preview' )
-        self.prev_btn.setDisabled( True )
 
         self.__previews = []
         thread = QThread()
@@ -392,7 +391,6 @@ class VidStreamer( QWidget ):
     @pyqtSlot( int )
     def preview_done( self, worker_id ):
         self.log.append( 'Preview worker #{} finsihed'.format(worker_id) )
-        self.prev_btn.setEnabled( True )
 
         # Update preview
         outdir  = os.path.join( cache, os.path.basename( self.selected_media ) )
@@ -467,7 +465,9 @@ class VidStreamer( QWidget ):
         model.select( item, QItemSelectionModel.Select)
         self.selected_media = item.data()
         self.log.append( 'Queued: {}'.format( self.selected_media ) )
-        self.prev_btn.setEnabled( True )
+
+        # Create a preview of the item selected.
+        self.create_preview()
 
         # Clean up the thread
         for thread, work in self.__updaters:
@@ -506,6 +506,7 @@ class VidStreamer( QWidget ):
     def selectionChanged( self, index ):
         self.log.append( 'Queued: {}'.format(index.data()))
         self.selected_media = index.data()
+        self.create_preview()
 
     def closeEvent( self, event ):
         self.thread_clean_up()
