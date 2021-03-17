@@ -345,7 +345,7 @@ class VidStreamer( QWidget ):
         self.log.append( 'Adding sources' )
         self.mediafiles.clear()
         for path in sources:
-            item = QStandardItem( path )
+            item = QStandardItem( os.path.basename( path ) )
             self.mediafiles.appendRow( item )
 
         # Default to the item just added
@@ -353,7 +353,9 @@ class VidStreamer( QWidget ):
         item  = self.mediafiles.index( rows-1, 0 )
         model = self.playlist.selectionModel()
         model.select( item, QItemSelectionModel.Select)
-        self.selected_media = item.data()
+
+        # Update the selected media
+        self.selected_media = sources[ rows- 1 ] #item.data()
         self.log.append( 'Queued: {}'.format( self.selected_media ) )
 
         # Create a preview of the item selected.
@@ -456,14 +458,16 @@ class VidStreamer( QWidget ):
         self.log.append( 'Updating sources' )
         self.mediafiles.clear()
         for i, path in enumerate( sources ):
-            item = QStandardItem( path )
+            item = QStandardItem( os.path.basename( path ) )
             self.mediafiles.appendRow( item )
 
         # Default to the zeroth item
         item = self.mediafiles.index( 0, 0 )
         model = self.playlist.selectionModel()
         model.select( item, QItemSelectionModel.Select)
-        self.selected_media = item.data()
+
+        # Update the selected media
+        self.selected_media = sources[ 0 ]
         self.log.append( 'Queued: {}'.format( self.selected_media ) )
 
         # Create a preview of the item selected.
@@ -504,8 +508,9 @@ class VidStreamer( QWidget ):
         self.log.append( 'Changed video device: {}'.format( text ) )
         
     def selectionChanged( self, index ):
-        self.log.append( 'Queued: {}'.format(index.data()))
-        self.selected_media = index.data()
+        self.log.append( 'selected: {}'.format( index.row() ) )
+        self.log.append( 'Queued: {}'.format( sources[ index.row()] ) )
+        self.selected_media = sources[ index.row()]
         self.create_preview()
 
     def closeEvent( self, event ):
