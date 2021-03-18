@@ -32,6 +32,8 @@ cache   = os.path.expanduser( '~/.v4l2tricks' )
 sources = list()
 mutex   = QMutex()
 
+cached_path = lambda media : os.path.join( cache, os.path.basename( media ) )
+
 class FileDialog(QWidget):
     '''FileDialog '''
     def __init__(self, dialog_type = 'Open', title = 'File Dialog'):
@@ -136,8 +138,9 @@ class VidStreamer( QWidget ):
         # Threading: Media updaters
         self.__updaters      = None
         self.__previews      = None
+        self.__icons         = None
 
-        # Threading: Streamer
+        # Threading: Streamer (Presentation Thread)
         self.stream_thread = QThread(parent=self)
         self.streamer      = MediaStreamer()
         self.streamer.moveToThread( self.stream_thread )
@@ -201,6 +204,7 @@ class VidStreamer( QWidget ):
 
         # Video Devices
         devmenu  = editmenu.addMenu( '&Device' )
+
         self.devgroup = QActionGroup( devmenu )
         self.devgroup.setExclusive( True )
         self.devgroup.triggered.connect( self.editDevice )
@@ -213,6 +217,11 @@ class VidStreamer( QWidget ):
                 self.device = '/dev/{0}'.format( device )
             self.devgroup.addAction( act )
             devmenu.addAction( act )
+
+        createAct = QAction( QIcon(), '&Create Icons', self )
+        createAct.setStatusTip( 'Create Icons' )
+        createAct.triggered.connect( self.create_icons )
+        editmenu.addAction( createAct )
         
         # Help menu
         helpmenu = menubar.addMenu( '&Help' )
@@ -227,7 +236,6 @@ class VidStreamer( QWidget ):
         layout_lbtn = QHBoxLayout()
         layout_ctrl = QHBoxLayout()
         layout_mntr = QVBoxLayout()
-
 
         # Menu Bar
         layout_menu = self.init_menu()
@@ -331,6 +339,22 @@ class VidStreamer( QWidget ):
         layout_main.addWidget( self.log )
         self.setLayout( layout_main )
 
+
+    def build_playlist( self ):
+        ''' Build the playlist '''
+        self.log.append( 'Building playlist' )
+        self.mediafiles.clear()
+
+        for path in sources:
+            icon = os.path.join( cached_path( path ), 'icon.jpg' )
+            if not os.path.exists( icon ):
+                icon = ''
+            self.new_playlist_item( path, icon )
+
+    def new_playlist_item( self, s, icon = '' ):
+        item = QStandardItem( QIcon( icon ), os.path.basename( s ) )
+        self.mediafiles.appendRow( item )
+
     def add( self ):
         self.log.append('Adding: ' )
         add = FileDialog('Opens')
@@ -339,15 +363,12 @@ class VidStreamer( QWidget ):
         if len( add.paths ) == 0:
             return # Bail early
 
-        sources.extend( add.paths )
-        
-        # Append the playlist
-        self.log.append( 'Adding sources' )
-        self.mediafiles.clear()
-        for path in sources:
-            item = QStandardItem( os.path.basename( path ) )
-            self.mediafiles.appendRow( item )
+        sources.extend( add.paths )        
+        self.build_playlist()
 
+        # This will cause the playlist to flash
+        self.create_icons()
+        
         # Default to the item just added
         rows  = self.mediafiles.rowCount()
         item  = self.mediafiles.index( rows-1, 0 )
@@ -364,13 +385,57 @@ class VidStreamer( QWidget ):
     def remove( self ):
         self.log.append( 'remove' )
 
-    def create_preview( self ):
+
+    def create_icons( self ):
+        self.__icons = []
+        thread = QThread()
+        thread.setObjectName( 'Icon' )
+        worker = IconSource( 0 )
+
+        # Keep references to workers and threads to avoid GC
+        self.__icons.append( (thread, worker ) )
+        worker.moveToThread( thread )
+
+        # Connect signals
+        worker.sig_step.connect( self.icon_step )
+        worker.sig_done.connect( self.icon_done )
+        worker.sig_msg.connect( self.log.append )
+        self.sig_abort_workers.connect( worker.abort )
+
+        thread.started.connect( worker.create )
+        thread.start()
+        self.log.append( 'Icon thread started' )
+
+    @pyqtSlot( int )
+    def icon_step( self, data: int ):
+        self.progressBar.setValue( data ) # remove me later
+
+    @pyqtSlot( int )
+    def icon_done( self, worker_id ):
+        self.log.append( 'Icon worker #{} finsihed'.format(worker_id) )
+
+        # Update preview
+        self.log.append( 'Updating Icons' )                
+        self.build_playlist()
+        
+        # Clean up the thread
+        for thread, work in self.__icons:
+            thread.quit()
+            thread.wait()
+        self.log.append( 'All icons exited' )      
+        
+
+    def create_preview( self, path = None ):
         self.log.append( 'preview' )
 
         self.__previews = []
         thread = QThread()
         thread.setObjectName( 'Preview' )
-        worker = PreviewSource( 0, self.selected_media )
+
+        if path is None:
+            worker = PreviewSource( 0, self.selected_media )
+        else:
+            worker = PreviewSource( 0, path )
 
         # Keep references to workers and threads to avoid GC
         self.__previews.append( (thread, worker ) )
@@ -394,9 +459,10 @@ class VidStreamer( QWidget ):
     def preview_done( self, worker_id ):
         self.log.append( 'Preview worker #{} finsihed'.format(worker_id) )
 
-        # Update preview
-        outdir  = os.path.join( cache, os.path.basename( self.selected_media ) )
-        preview = os.path.join( outdir, '{}.gif'.format( self.selected_media ) )
+        # Update preview       
+        outdir  = cached_path( self.selected_media )
+        gif     = '{}.gif'.format( os.path.basename( self.selected_media ) )
+        preview = os.path.join( outdir, gif )
         self.log.append( 'Looking for preview: {}, {}'.format( preview, os.path.exists( preview ) ) )
         movie = QMovie( preview )
         self.preview.setMovie( movie )
@@ -455,12 +521,13 @@ class VidStreamer( QWidget ):
         self.rm_btn.setEnabled( True )
 
         # Update the list view
-        self.log.append( 'Updating sources' )
-        self.mediafiles.clear()
-        for i, path in enumerate( sources ):
-            item = QStandardItem( os.path.basename( path ) )
-            self.mediafiles.appendRow( item )
-
+        # This will cause the playlist to flash
+        self.build_playlist()        
+#        self.log.append( 'Updating sources' )
+#        self.mediafiles.clear()
+#        for i, path in enumerate( sources ):
+#            self.new_playlist_item( path )
+            
         # Default to the zeroth item
         item = self.mediafiles.index( 0, 0 )
         model = self.playlist.selectionModel()
@@ -487,6 +554,7 @@ class VidStreamer( QWidget ):
             thread.quit()
             thread.wait()
         self.log.append( 'All updaters exited' )
+
 
     def stream( self ):
         if not self.streamer.isStreaming():
@@ -529,15 +597,14 @@ class VidStreamer( QWidget ):
 
 class PreviewSource( QObject ):
     sig_step = pyqtSignal(int)  # Id, step description
-    sig_done = pyqtSignal(int)      # Id, end of job
-    sig_msg  = pyqtSignal(str)      # msg to user
+    sig_done = pyqtSignal(int)  # Id, end of job
+    sig_msg  = pyqtSignal(str)  # msg to user
 
     def __init__( self, id:int, path:str ):
         super( PreviewSource, self ).__init__()
         self.__id    = id
         self.__abort = False
         self.__path  = path
-        self.__root  = cache
 
     @pyqtSlot()
     def preview( self ):
@@ -554,7 +621,7 @@ class PreviewSource( QObject ):
         increments = 4
         timestamp = lambda duration, step: ( ( duration/step ) - ( 0.5 * ( duration * 1.0/increments ) ) )
 
-        outdir = os.path.join( self.__root, os.path.basename( self.__path ) )
+        outdir = os.path.join( cache, os.path.basename( self.__path ) )
         if not os.path.exists( outdir ):
             fsutil.mkdir_p( outdir )
 
@@ -575,15 +642,68 @@ class PreviewSource( QObject ):
                 break
 
         # Generate a gif from the previews
-        preview = os.path.join( outdir, '{}.gif'.format( self.__path ) )
+        basename = os.path.basename( self.__path )
+        gif = '{}.gif'.format( basename )
+        outfile = os.path.join( outdir, gif )
         pattern = os.path.join( outdir, 'preview_%03d.jpg' )
-        self.sig_msg.emit( 'Generating preview: {} from {}'.format( preview, pattern ) )
-        jpgs2gif( pattern, out = preview )
+
+        self.sig_msg.emit( 'Pattern: {}'.format( pattern ) )
+        self.sig_msg.emit( 'Generating preview: {} from {}'.format( outfile, pattern ) )
+        jpgs2gif( pattern, out = outfile )
 
         self.sig_done.emit( self.__id )
 
     def abort( self ):
         msg = 'Preview #{} notified to abort'.format(self.__id)
+        self.sig_msg.emit( msg )
+        self.__abort = True
+
+
+class IconSource( QObject ):
+    sig_step = pyqtSignal(int)  # Id, step description
+    sig_done = pyqtSignal(int)  # Id, end of job
+    sig_msg  = pyqtSignal(str)  # msg to user
+
+    def __init__( self, id:int ):
+        super( IconSource, self ).__init__()
+        self.__id    = id
+        self.__abort = False
+        self.__root  = cache
+
+    @pyqtSlot()
+    def create( self ):
+        ''' Perform task '''
+        thread_name = QThread.currentThread().objectName()
+        thread_id   = int( QThread.currentThreadId() )
+
+        self.sig_msg.emit('Attempting to generation icon thumbnails')
+        for i, path in enumerate( sources ):
+            self.sig_msg.emit('Iconify: {}'.format( path ) )
+            duration = probe_duration( path )
+            outdir = os.path.join( self.__root, os.path.basename( path ) )
+            if not os.path.exists( outdir ):
+                fsutil.mkdir_p( outdir )
+
+            # Make a thumbnail icon if it doesn't already exist
+            outfile= 'icon.jpg'
+            outpath = os.path.join( outdir, outfile )
+
+            if not os.path.exists( outpath ):
+                ts = duration * 0.10
+                self.sig_msg.emit( 'Generating icon: {} @ {} seconds'.format( outpath, ts ) )
+                generate_thumbnail( path, outpath, time = ts )           
+            self.sig_step.emit( i )
+    
+            # Check for abort
+            if self.__abort:
+                self.sig_msg.emit('Aborting')
+                break
+
+        self.sig_msg.emit( 'done' )
+        self.sig_done.emit( self.__id )
+
+    def abort( self ):
+        msg = 'Icon #{} notified to abort'.format(self.__id)
         self.sig_msg.emit( msg )
         self.__abort = True
 
