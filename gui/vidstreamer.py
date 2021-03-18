@@ -28,11 +28,50 @@ get_video_devices = lambda : [ dev for dev in os.listdir('/dev') if 'video' in d
 containers  = MediaContainers()
 media_types = containers.extensions()
 
-cache   = os.path.expanduser( '~/.v4l2tricks' )
-sources = list()
-mutex   = QMutex()
+# Settings
+class SettingsManager( object ):
+    VIDEO    ='video'
+    DISCOVER ='discover'
+    DEBUG    ='debug'
 
+    def __init__( self, filename ):
+        self.settings = QSettings( filename, QSettings.IniFormat )
+        self.defaults()
+
+    def setkey( self, domain, key, value ):
+        self.settings.setValue( os.path.join( domain, key ), value )
+
+    def getkey( self, domain, key ):
+        return self.settings.getValue( os.path.join( domain, key ) )
+
+    def sync( self ):
+        self.settings.sync()
+
+    def defaults( self ):
+        self.setkey( self.VIDEO,    'device',       '/dev/video20' )
+        self.setkey( self.DISCOVER, 'exclude',      ['.git', '.svn'] )
+        self.setkey( self.DEBUG,    'debug',        False )
+        self.setkey( self.DEBUG,    'verbose',      False )
+        self.setkey( self.VIDEO,    'auto_preview', True )
+        self.setkey( self.VIDEO,    'auto_icon',    True )
+
+        # Sync the settings
+        self.sync()
+
+    def dump( self ):
+        for k in self.settings.allKeys():
+            value = self.settings.value( k )
+            print( k, value, type( value ) )
+
+
+cache       = os.path.expanduser( '~/.v4l2tricks' )
 cached_path = lambda media : os.path.join( cache, os.path.basename( media ) )
+config_path = cached_path( 'vidstreamer.ini' )
+
+#settings    = SettingsManager( config_path )
+#settings.dump()
+
+sources = list()
 
 def create_icon( path ):
     ''' Create an icon of the media at <path> '''
@@ -185,9 +224,6 @@ class VidStreamer( QWidget ):
         filemenu = QMenu( '&File', self )
         menubar.addMenu( filemenu )
 
-        # Delete this
-        test_it = lambda x : self.log.append( str( x ) )
-
         # Open folder
         foldAct = QAction( QIcon(),'&Open Folder', self )
         foldAct.setStatusTip( 'Open Folder' )
@@ -269,7 +305,7 @@ class VidStreamer( QWidget ):
         background-color: white;
         }
         QFrame{
-        background-color: #3E3E3E;
+        #background-color: #3E3E3E;
         border-radius: 10px;
         }
         '''
@@ -491,12 +527,7 @@ class VidStreamer( QWidget ):
         self.rm_btn.setEnabled( True )
 
         # Update the list view
-        # This will cause the playlist to flash
         self.build_playlist()
-#        self.log.append( 'Updating sources' )
-#        self.mediafiles.clear()
-#        for i, path in enumerate( sources ):
-#            self.new_playlist_item( path )
 
         # Default to the zeroth item
         item = self.mediafiles.index( 0, 0 )
@@ -631,8 +662,8 @@ class PreviewSource( QObject ):
 
 class SourceUpdater( QObject ):
     sig_step = pyqtSignal(int,int) # Id, step description
-    sig_done = pyqtSignal(int)      # Id, end of job
-    sig_msg  = pyqtSignal(str)      # msg to user
+    sig_done = pyqtSignal(int)     # Id, end of job
+    sig_msg  = pyqtSignal(str)     # msg to user
 
     def __init__( self, id:int, path:str, excludes = ['.git', '.svn'] ):
         super( SourceUpdater, self ).__init__()
