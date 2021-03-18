@@ -191,7 +191,7 @@ class VidStreamer( QWidget ):
         # Open folder
         foldAct = QAction( QIcon(),'&Open Folder', self )
         foldAct.setStatusTip( 'Open Folder' )
-        foldAct.triggered.connect( lambda : test_it( 'folder' ) )
+        foldAct.triggered.connect( self.find )
         filemenu.addAction( foldAct )
 
         # Add media
