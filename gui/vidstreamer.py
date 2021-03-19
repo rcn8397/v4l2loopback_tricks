@@ -13,11 +13,11 @@ from v4l2tricks.stream    import stream_media
 from v4l2tricks.ffmpeg_if import generate_thumbnail, jpgs2gif, probe_duration
 from v4l2tricks.supported import MediaContainers
 from v4l2tricks           import fsutil
+from gui.wait             import QtWaitSpinner
 
 def trap_exc_during_debug(*args):
     # when app raises uncaught exception, print info
     print(args)
-
 
 # install exception hook: without this, uncaught exception would cause application to exit
 #sys.excepthook = trap_exc_during_debug
@@ -85,6 +85,35 @@ def create_icon( path ):
     if not os.path.exists( outpath ):
         ts = duration * 0.10
         generate_thumbnail( path, outpath, time = ts )
+
+def create_gif( path, increments = 4, overwrite = False ):
+    '''
+    Generate a gif from media at <path>, from <increments> fragments
+    '''
+    duration  = probe_duration(path )
+    timestamp = lambda duration, step: ( ( duration/step ) - ( 0.5 * ( duration * 1.0/increments ) ) )
+    basename  = os.path.basename( path )
+    outdir    = os.path.join( cache, basename )
+    gif       = '{}.gif'.format( basename )
+
+    if not os.path.exists( outdir ):
+        fsutil.mkdir_p( outdir )
+
+    # Make 4 thumbnails for previewing
+    for i in range( increments, 0, -1 ):
+        step = (increments + 1) - i
+        ts = timestamp( duration, step )
+        outfile= '{}_{:03}.jpg'.format( 'preview', i )
+        outpath = os.path.join( outdir, outfile )
+        if not os.path.exists( outpath ) or overwrite:
+            generate_thumbnail( path, outpath, time = ts )
+
+    # Generate a gif from the previews if one doesn't already exist
+    outfile   = os.path.join( outdir, gif )
+    pattern   = os.path.join( outdir, 'preview_%03d.jpg' )                              
+    if not os.path.exists( outfile ) or overwrite:
+        jpgs2gif( pattern, out = outfile )
+
 
 
 class FileDialog(QWidget):
@@ -185,12 +214,11 @@ class VidStreamer( QWidget ):
         self.src_threads   = []
         self.devices       = get_video_devices()
         self.device        = '/dev/{0}'.format( self.devices[0] )
-
+        self.log_shown = True
         self.selected_media = None
 
         # Threading: Media updaters
         self.__updaters      = None
-        self.__previews      = None
 
         # Threading: Streamer (Presentation Thread)
         self.stream_thread = QThread(parent=self)
@@ -250,6 +278,11 @@ class VidStreamer( QWidget ):
 
         # Edit menu
         editmenu = menubar.addMenu( '&Edit' )
+
+        self.togglelog  = QAction( QIcon(), 'Show &Log', self )
+        self.togglelog.setStatusTip( 'Show/Hide log' )
+        self.togglelog.triggered.connect( self.toggle_log )
+        editmenu.addAction( self.togglelog )
 
         # Video Devices
         devmenu  = editmenu.addMenu( '&Device' )
@@ -335,17 +368,18 @@ class VidStreamer( QWidget ):
         layout_lbtn.addItem( hspacer )
         layout_lbtn.setContentsMargins( 0,0,0,0)
 
-        self.progressBar = QProgressBar( self )
-        self.progressBar.setValue(0)
-
         self.playlist   = QListView( self )
         self.mediafiles = QStandardItemModel()
         self.playlist.setModel( self.mediafiles )
         self.playlist.clicked.connect( self.selectionChanged )
 
+        self.playlist_busy = QtWaitSpinner( self.playlist )
+        self.playlist_busy.trailFadePercent = 20
+        self.playlist_busy.minTrailOpacity = 50
+        self.playlist_busy.setColor( QColor( Qt.black ) )
+
         layout_list.addWidget( self.playlist )
         layout_list.addLayout( layout_lbtn )
-        layout_list.addWidget( self.progressBar )
 
         self.nowplaying = QLabel( self, objectName='now_playing' )
         self.preview    = QLabel( self, objectName='preview' )
@@ -400,6 +434,7 @@ class VidStreamer( QWidget ):
         self.mediafiles.appendRow( item )
 
     def add( self ):
+        self.playlist_busy.start()
         self.log.append('Adding: ' )
         add = FileDialog('Opens')
 
@@ -426,45 +461,14 @@ class VidStreamer( QWidget ):
         self.log.append( 'Queued: {}'.format( self.selected_media ) )
 
         # Create a preview of the item selected.
-        self.create_preview()
+        create_gif( self.selected_media )
+        self.update_preview()
+        self.playlist_busy.stop()
 
     def remove( self ):
         self.log.append( 'remove' )
 
-    def create_preview( self, path = None ):
-        self.log.append( 'preview' )
-
-        self.__previews = []
-        thread = QThread()
-        thread.setObjectName( 'Preview' )
-
-        if path is None:
-            worker = PreviewSource( 0, self.selected_media )
-        else:
-            worker = PreviewSource( 0, path )
-
-        # Keep references to workers and threads to avoid GC
-        self.__previews.append( (thread, worker ) )
-        worker.moveToThread( thread )
-
-        # Connect signals
-        worker.sig_step.connect( self.preview_step )
-        worker.sig_done.connect( self.preview_done )
-        worker.sig_msg.connect( self.log.append )
-        self.sig_abort_workers.connect( worker.abort )
-
-        thread.started.connect( worker.preview )
-        thread.start()
-        self.log.append( 'Preview thread started' )
-
-    @pyqtSlot( int )
-    def preview_step( self, data: int ):
-        self.progressBar.setValue( data ) # remove me later
-
-    @pyqtSlot( int )
-    def preview_done( self, worker_id ):
-        self.log.append( 'Preview worker #{} finsihed'.format(worker_id) )
-
+    def update_preview(self):
         # Update preview
         outdir  = cached_path( self.selected_media )
         gif     = '{}.gif'.format( os.path.basename( self.selected_media ) )
@@ -473,13 +477,6 @@ class VidStreamer( QWidget ):
         movie = QMovie( preview )
         self.preview.setMovie( movie )
         movie.start()
-
-        # Clean up the thread
-        for thread, work in self.__previews:
-            thread.quit()
-            thread.wait()
-        self.log.append( 'All previews exited' )
-
 
     def find( self ):
         folder = FileDialog('Opend')
@@ -490,7 +487,7 @@ class VidStreamer( QWidget ):
         else:
             self.dirname = folder.path
 
-        self.progressBar.setValue( 0 )
+        self.playlist_busy.start()
         self.log.append( 'Sources: {0}'.format( sources ) )
         self.find_btn.setDisabled( True )
         self.add_btn.setDisabled( True )
@@ -516,12 +513,13 @@ class VidStreamer( QWidget ):
 
     @pyqtSlot( int, int )
     def discover_step( self, worker_id: int, data: int ):
-        self.progressBar.setValue( data )
+        ''' Busy doing work '''
+        pass
 
     @pyqtSlot( int )
     def discover_done( self, worker_id ):
         self.log.append( 'worker #{} finsihed'.format(worker_id) )
-        self.progressBar.setValue( 100 )
+        self.playlist_busy.stop()
         self.find_btn.setEnabled( True )
         self.add_btn.setEnabled( True )
         self.rm_btn.setEnabled( True )
@@ -535,12 +533,12 @@ class VidStreamer( QWidget ):
         model.select( item, QItemSelectionModel.Select)
 
         # Update the selected media
-        self.selected_media = sources[ 0 ]
-        self.log.append( 'Queued: {}'.format( self.selected_media ) )
+        if len( sources ) > 0:
+            self.selected_media = sources[ 0 ]
+            self.log.append( 'Queued: {}'.format( self.selected_media ) )
 
-        # Create a preview of the item selected.
-        self.create_preview()
-
+            self.update_preview()
+            
         # Clean up the thread
         for thread, work in self.__updaters:
             thread.quit()
@@ -580,8 +578,18 @@ class VidStreamer( QWidget ):
         self.log.append( 'selected: {}'.format( index.row() ) )
         self.log.append( 'Queued: {}'.format( sources[ index.row()] ) )
         self.selected_media = sources[ index.row()]
-        self.create_preview()
-
+        self.update_preview()
+        
+    def toggle_log( self ):
+        if self.log_shown:
+            self.log_shown = False
+            self.togglelog.setText( 'Show &Log' )
+            self.log.hide()
+        else:
+            self.log_shown = True
+            self.togglelog.setText( 'Hide &Log' )
+            self.log.show()
+            
     def closeEvent( self, event ):
         self.thread_clean_up()
         super().closeEvent( event )
@@ -595,69 +603,6 @@ class VidStreamer( QWidget ):
         self.streamer.exit()
         self.stream_thread.quit()
         self.stream_thread.wait()
-
-class PreviewSource( QObject ):
-    sig_step = pyqtSignal(int)  # Id, step description
-    sig_done = pyqtSignal(int)  # Id, end of job
-    sig_msg  = pyqtSignal(str)  # msg to user
-
-    def __init__( self, id:int, path:str ):
-        super( PreviewSource, self ).__init__()
-        self.__id    = id
-        self.__abort = False
-        self.__path  = path
-
-    @pyqtSlot()
-    def preview( self ):
-        ''' Perform task '''
-        thread_name = QThread.currentThread().objectName()
-        thread_id   = int( QThread.currentThreadId() )
-
-        self.sig_msg.emit('Attempting to generation preview thumbnails')
-        self.sig_msg.emit('Media Selected: {}'.format( self.__path ) )
-
-        duration = probe_duration( self.__path )
-        self.sig_msg.emit( 'duration: {}'.format( duration ) )
-
-        increments = 4
-        timestamp = lambda duration, step: ( ( duration/step ) - ( 0.5 * ( duration * 1.0/increments ) ) )
-
-        outdir = os.path.join( cache, os.path.basename( self.__path ) )
-        if not os.path.exists( outdir ):
-            fsutil.mkdir_p( outdir )
-
-        # Make 4 thumbnails for previewing
-        for i in range( increments, 0, -1 ):
-            step = (increments + 1) - i
-            ts = timestamp( duration, step )
-
-            outfile= '{}_{:03}.jpg'.format( 'preview', i )
-            outpath = os.path.join( outdir, outfile )
-            self.sig_msg.emit( 'Generating preview {}: {} @ {} seconds'.format( step, outpath, ts ) )
-            generate_thumbnail( self.__path, outpath, time = ts )
-            self.sig_step.emit( i )
-
-            # Check for abort
-            if self.__abort:
-                self.sig_msg.emit('Aborting')
-                break
-
-        # Generate a gif from the previews
-        basename = os.path.basename( self.__path )
-        gif = '{}.gif'.format( basename )
-        outfile = os.path.join( outdir, gif )
-        pattern = os.path.join( outdir, 'preview_%03d.jpg' )
-
-        self.sig_msg.emit( 'Pattern: {}'.format( pattern ) )
-        self.sig_msg.emit( 'Generating preview: {} from {}'.format( outfile, pattern ) )
-        jpgs2gif( pattern, out = outfile )
-
-        self.sig_done.emit( self.__id )
-
-    def abort( self ):
-        msg = 'Preview #{} notified to abort'.format(self.__id)
-        self.sig_msg.emit( msg )
-        self.__abort = True
 
 
 class SourceUpdater( QObject ):
@@ -703,6 +648,7 @@ class SourceUpdater( QObject ):
                 if is_ext( fname.lower(), media_types ):
                     path = os.path.join( root, fname )
                     sources.append( path )
+                    create_gif( path )
                     create_icon( path )
 
                 # Check for abort

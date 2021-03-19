@@ -18,7 +18,7 @@ class QtWaitSpinner(QWidget):
     _color                = QColor( Qt.black )
     _roundness            = 100.0
     _minimumTrailOpacity  = 50
-    _trailFadePercentage  = 20
+    _trailFadePercentage  = 50
     _revolutionsPerSecond = math.pi/2
     _numberOfLines        = 20
     _lineLength           = 10
@@ -27,7 +27,28 @@ class QtWaitSpinner(QWidget):
     _currentCounter       = 0
     _isSpinning           = False
 
-    
+    @property
+    def minTrailOpacity( self ):
+        return self._minimumTrailOpacity
+
+    @minTrailOpacity.setter
+    def minTrailOpacity( self, v ):
+        self._minimumTrailOpacity = v
+
+    @property
+    def trailFadePercent( self ):
+        return self._trailFadePercentage
+
+    @trailFadePercent.setter
+    def trailFadePercent( self, v ):
+        self._trailFadePercentage = v
+
+    def getColor( self ):
+        return self._color 
+
+    def setColor( self, color ):
+        self._color = color
+        
     def __init__( self, parent = None,  centerOnParent = True, disableParent = True ):
         super( QtWaitSpinner, self ).__init__( parent )
 
