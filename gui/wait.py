@@ -180,27 +180,25 @@ class TestWindow( QWidget ):
         self.mins.setValue( 20 )
         self.mins.valueChanged.connect( self.set_mins )
 
-        btn = QPushButton( self )
-        btn.setText( 'restart' )
-        btn.clicked.connect( self.restart )
+        start = QPushButton( self )
+        start.setText( 'start' )
+        start.clicked.connect( self.busy.start )
 
+        stop = QPushButton( self )
+        stop.setText( 'stop' )
+        stop.clicked.connect( self.busy.stop )
+        
         layout.addWidget( label )
         layout.addWidget( self.trans_value )
         layout.addWidget( self.mintrans_value )
         layout.addWidget( self.trans )
         layout.addWidget( self.mins )
-        layout.addWidget( btn )
+        layout.addWidget(start)
+        layout.addWidget(stop)
         self.setLayout( layout )       
 
-
-        self.restart()
-        
         self.setWindowTitle('Absolute')
         self.show()
-
-    def restart( self ):
-        self.busy.start()
-        QTimer.singleShot( 10000, self.busy.stop )
 
     def set_trans( self ):
         self.trans_value.setText( str( self.trans.value() ) )
