@@ -464,6 +464,7 @@ class VidStreamer( QWidget ):
         # Update the selected media
         self.selected_media = sources[ rows- 1 ] #item.data()
         self.log.append( 'Queued: {}'.format( self.selected_media ) )
+        self.streamer.path = self.selected_media
 
         # Create a preview of the item selected.
         create_gif( self.selected_media )
@@ -541,6 +542,7 @@ class VidStreamer( QWidget ):
         if len( sources ) > 0:
             self.selected_media = sources[ 0 ]
             self.log.append( 'Queued: {}'.format( self.selected_media ) )
+            self.streamer.path = self.selected_media
 
             self.update_preview()
             
@@ -583,6 +585,7 @@ class VidStreamer( QWidget ):
         self.log.append( 'selected: {}'.format( index.row() ) )
         self.log.append( 'Queued: {}'.format( sources[ index.row()] ) )
         self.selected_media = sources[ index.row()]
+        self.streamer.path  = self.selected_media
         self.update_preview()
         
     def toggle_log( self ):
@@ -684,7 +687,8 @@ class MediaStreamer( QObject ):
         self.height   = 480
         self.display  = None
         self.device   = '/dev/video20'
-
+        self.path     = None
+        
     def isStreaming( self ):
         return self._running
 
@@ -705,7 +709,7 @@ class MediaStreamer( QObject ):
                 print( 'Attempting to start stream' )
                 self.debug_parameters()
                 time.sleep(1)
-                #self.start_streaming()
+                self.start_streaming()
 
         self.finished.emit()
         print( '{0} finished'.format( __class__.__name__ ) )
@@ -733,13 +737,9 @@ class MediaStreamer( QObject ):
             print( 'Could not detect DISPLAY variable (normally :0 or :1)' )
             pass
 
-        stream = DesktopScopeProcess( self.x,
-                                      self.y,
-                                      self.width,
-                                      self.height,
-                                      self.display,
-                                      self.device,
-                                      True )
+        stream = stream_media( self.path,
+                               self.device,
+                               True )
 
         self.process_stream( stream )
 
