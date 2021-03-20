@@ -25,8 +25,11 @@ def trap_exc_during_debug(*args):
 get_video_devices = lambda : [ dev for dev in os.listdir('/dev') if 'video' in dev ]
 
 # Media extensions
-containers  = MediaContainers()
-media_types = containers.extensions()
+containers      = MediaContainers()
+#media_types     = containers.extensions()
+media_types = {'.flv', '.mp4', '.webm', '.mov', '.m4a', '.ogg', '.mkv', '.3gp', '.asf', '.wma', '.mpg', '.divx', '.mpeg', '.wmv', '.vob', '.avi'}
+
+media_types_str = ' '.join( '*{}'.format( t ) for t in media_types )
 
 # Settings
 class SettingsManager( object ):
@@ -132,6 +135,7 @@ class FileDialog(QWidget):
     def initUI(self):
         self.setWindowTitle(self.title)
         self.setGeometry(self.left, self.top, self.width, self.height)
+        self.setFixedSize( self.width, self.height )
 
         try:
             dialog = { 'Open' : self.openFileNameDialog,
@@ -159,7 +163,7 @@ class FileDialog(QWidget):
     def openFileNameDialog(self):
         options = QFileDialog.Options()
         options |= QFileDialog.DontUseNativeDialog
-        fileName, _ = QFileDialog.getOpenFileName(self,"Open File", "","All Files (*);;Python Files (*.py)", options=options)
+        fileName, _ = QFileDialog.getOpenFileName(self,"Open File", "","Media Files ({})".format( media_types_str ), options=options)
         self._paths = []
         if fileName:
             self._paths.append( fileName )
@@ -167,7 +171,7 @@ class FileDialog(QWidget):
     def openFileNamesDialog(self):
         options = QFileDialog.Options()
         options |= QFileDialog.DontUseNativeDialog
-        files, _ = QFileDialog.getOpenFileNames(self,"Open Files", "","All Files (*);;Python Files (*.py)", options=options)
+        files, _ = QFileDialog.getOpenFileNames(self,"Open Files", "","Media Files ({})".format( media_types_str ), options=options)
         self._paths = []
         if files:
             self._paths = files
@@ -440,6 +444,7 @@ class VidStreamer( QWidget ):
 
         self.log.append( '{}'.format( add.paths ) )
         if len( add.paths ) == 0:
+            self.playlist_busy.stop()
             return # Bail early
 
         sources.extend( add.paths )
@@ -626,6 +631,8 @@ class SourceUpdater( QObject ):
         msg = 'Running worker #{} from thread "{}" (#{})'.format(self.__id, thread_name, thread_id)
         self.sig_msg.emit(msg)
 
+        # TODO: optimize
+        # These are not optimized and chew up resources
         is_xcl = lambda x, xcl : any( e in x for e in xcl )
         is_ext = lambda f, ext : any( f.endswith( e ) for e in ext )
 
