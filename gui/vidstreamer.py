@@ -66,6 +66,7 @@ class SettingsManager( object ):
             print( k, value, type( value ) )
 
 
+icon_path   = 'icons/collections/basics'
 cache       = os.path.expanduser( '~/.v4l2tricks' )
 cached_path = lambda media : os.path.join( cache, os.path.basename( media ) )
 config_path = cached_path( 'vidstreamer.ini' )
@@ -236,7 +237,7 @@ class VidStreamer( QWidget ):
         self.stream_thread.started.connect( self.streamer.long_running )
 
         self.setWindowTitle( self.__class__.__name__ )
-        self.setWindowIcon( QIcon( './gui/tophat.svg' ) )
+        self.setWindowIcon( QIcon( os.path.join( icon_path, 'tophat.svg' ) ) )
 
         self.init_layout()
         self.init_cache()
