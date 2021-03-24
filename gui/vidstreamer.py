@@ -2,6 +2,7 @@
 import os
 import sys
 import time
+
 from PyQt5.QtCore import *
 from PyQt5.QtGui import *
 from PyQt5.QtWidgets import *
@@ -28,7 +29,6 @@ get_video_devices = lambda : [ dev for dev in os.listdir('/dev') if 'video' in d
 containers      = MediaContainers()
 #media_types     = containers.extensions()
 media_types = {'.flv', '.mp4', '.webm', '.mov', '.m4a', '.ogg', '.mkv', '.3gp', '.asf', '.wma', '.mpg', '.divx', '.mpeg', '.wmv', '.vob', '.avi'}
-
 media_types_str = ' '.join( '*{}'.format( t ) for t in media_types )
 
 # Settings
@@ -52,7 +52,6 @@ class SettingsManager( object ):
 
     def defaults( self ):
         self.setkey( self.VIDEO,    'device',       '/dev/video20' )
-        self.setkey( self.DISCOVER, 'exclude',      ['.git', '.svn'] )
         self.setkey( self.DEBUG,    'debug',        False )
         self.setkey( self.DEBUG,    'verbose',      False )
         self.setkey( self.VIDEO,    'auto_preview', True )
@@ -218,7 +217,9 @@ class VidStreamer( QWidget ):
         self.src_threads   = []
         self.devices       = get_video_devices()
         self.device        = '/dev/{0}'.format( self.devices[0] )
-        self.log_shown = True
+        self.log_shown      = True
+        self.enable_icons   = True
+        self.enable_preview = True
         self.selected_media = None
 
         # Threading: Media updaters
@@ -235,6 +236,7 @@ class VidStreamer( QWidget ):
         self.stream_thread.started.connect( self.streamer.long_running )
 
         self.setWindowTitle( self.__class__.__name__ )
+        self.setWindowIcon( QIcon( './gui/tophat.svg' ) )
 
         self.init_layout()
         self.init_cache()
@@ -287,6 +289,17 @@ class VidStreamer( QWidget ):
         self.togglelog.setStatusTip( 'Show/Hide log' )
         self.togglelog.triggered.connect( self.toggle_log )
         editmenu.addAction( self.togglelog )
+
+        self.iconact = QAction( QIcon(), 'Disable &Icons', self )
+        self.iconact.setStatusTip( 'Disable/Enable Icons' )
+        self.iconact.triggered.connect( self.toggle_icons )
+        editmenu.addAction( self.iconact )
+
+        self.previewact = QAction( QIcon(), 'Disable &Preview', self )
+        self.previewact.setStatusTip( 'Disable/Enable Preview' )
+        self.previewact.triggered.connect( self.toggle_preview )
+        editmenu.addAction( self.previewact )
+
 
         # Video Devices
         devmenu  = editmenu.addMenu( '&Device' )
@@ -502,7 +515,7 @@ class VidStreamer( QWidget ):
         self.__updaters = []
         thread = QThread()
         thread.setObjectName( 'Updater' )
-        worker = SourceUpdater( 0, self.dirname )
+        worker = SourceUpdater( 0, self.dirname, icons = self.enable_icons, preview = self.enable_preview )
         # Keep references to worker and thread to avoid garbage collection
         self.__updaters.append( ( thread, worker ) )
         worker.moveToThread( thread )
@@ -587,6 +600,22 @@ class VidStreamer( QWidget ):
         self.selected_media = sources[ index.row()]
         self.streamer.path  = self.selected_media
         self.update_preview()
+
+    def toggle_icons( self ):
+        if self.enable_icons:
+            self.enable_icons = False
+            self.iconact.setText( 'Enable &Icons' )
+        else:
+            self.enable_icons = True
+            self.iconact.setText( 'Disable &Icons' )
+            
+    def toggle_preview( self ):
+        if self.enable_preview:
+            self.enable_preview = False
+            self.previewact.setText( 'Enable &Preview' )
+        else:
+            self.enable_preview = True
+            self.previewact.setText( 'Disable &Preview' )
         
     def toggle_log( self ):
         if self.log_shown:
@@ -618,13 +647,13 @@ class SourceUpdater( QObject ):
     sig_done = pyqtSignal(int)     # Id, end of job
     sig_msg  = pyqtSignal(str)     # msg to user
 
-    def __init__( self, id:int, path:str, excludes = ['.git', '.svn'] ):
+    def __init__( self, id:int, path:str, icons:bool, preview:bool ):
         super( SourceUpdater, self ).__init__()
-        self.__id = id
-        self.__abort = False
-        self.__path  = path
-        self.__excludes = excludes
-
+        self.__id      = id
+        self.__abort   = False
+        self.__path    = path
+        self.__icons   = icons
+        self.__preview = preview
 
     @pyqtSlot()
     def discover( self ):
@@ -636,8 +665,9 @@ class SourceUpdater( QObject ):
 
         # TODO: optimize
         # These are not optimized and chew up resources
-        is_xcl = lambda x, xcl : any( e in x for e in xcl )
         is_ext = lambda f, ext : any( f.endswith( e ) for e in ext )
+
+        t0 = time.time()
 
         self.sig_msg.emit( 'Clearing sources' )
         sources.clear()
@@ -645,11 +675,8 @@ class SourceUpdater( QObject ):
         fcnt = 0
         self.sig_msg.emit( 'Searching...' )
         for root, dirs, files in os.walk( self.__path ):#, topdown=True ):
-            files= [ f for f in files if not f.startswith( '.' ) ]
-            dirs = [ d for d in dirs  if not d.startswith( '.' ) ]
-            if is_xcl( root, self.__excludes ):
-                # Skip excluded directories
-                continue
+            files=    [ f for f in files if not f.startswith( '.' ) ]
+            dirs[:] = [ d for d in dirs  if not d.startswith( '.' ) ]
 
             for fname in files:
                 fcnt += 1
@@ -658,14 +685,17 @@ class SourceUpdater( QObject ):
                 if is_ext( fname.lower(), media_types ):
                     path = os.path.join( root, fname )
                     sources.append( path )
-                    create_gif( path )
-                    create_icon( path )
+                    if self.__preview: create_gif( path )
+                    if self.__icons: create_icon( path )
 
                 # Check for abort
                 if self.__abort:
                     self.sig_msg.emit('Aborting')
                     break
 
+        t1 = time.time()
+        total = t1 - t0
+        self.sig_msg.emit( 'Total time taken: {}'.format( total ) )
         self.sig_done.emit( self.__id )
 
     def abort( self ):
