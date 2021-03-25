@@ -487,6 +487,30 @@ class VidStreamer( QWidget ):
 
     def remove( self ):
         self.log.append( 'remove' )
+        model     = self.playlist.selectionModel()
+        selection = model.selection()
+        index     = model.currentIndex()
+        row       = index.row()
+        data      = index.data()
+        self.log.append( 'Row: {} = {}'.format( row, data ) )
+        if row == -1:
+            return
+
+        
+        # Unload the media if its streaming       
+        media = sources[ row ]
+        if media == self.selected_media:
+            self.stop()
+
+        # remove it 
+        sources.pop( row )
+
+        # Rebuild the playlist
+        self.build_playlist()
+
+        # Select the item that was before the one removed
+        previous_item  = self.mediafiles.index( row-1, 0 )
+        model.select( previous_item, QItemSelectionModel.Select )
 
     def update_preview(self):
         # Update preview
