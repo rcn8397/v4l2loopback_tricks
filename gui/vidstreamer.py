@@ -485,32 +485,33 @@ class VidStreamer( QWidget ):
         self.update_preview()
         self.playlist_busy.stop()
 
+    def selectRow( self, row ):
+        model = self.playlist.selectionModel()
+        item  = self.mediafiles.index( row, 0 )
+        model.select( item, QItemSelectionModel.Select )
+
     def remove( self ):
         self.log.append( 'remove' )
-        model     = self.playlist.selectionModel()
-        selection = model.selection()
-        index     = model.currentIndex()
-        row       = index.row()
-        data      = index.data()
-        self.log.append( 'Row: {} = {}'.format( row, data ) )
-        if row == -1:
-            return
+        model = self.playlist.model()
+        for item in self.playlist.selectedIndexes():
+            row = item.row()
+            self.log.append( 'item: {}'.format( item ) )
+            model.removeRow( row )
+            self.log.append( 'Removed row: {}'.format( row ) )
+            
+            # Unload the media if its streaming       
+            media = sources[ row ]
+            if media == self.selected_media:
+                self.stop()
 
-        
-        # Unload the media if its streaming       
-        media = sources[ row ]
-        if media == self.selected_media:
-            self.stop()
+            # remove it 
+            sources.pop( row )
 
-        # remove it 
-        sources.pop( row )
-
-        # Rebuild the playlist
-        self.build_playlist()
-
-        # Select the item that was before the one removed
-        previous_item  = self.mediafiles.index( row-1, 0 )
-        model.select( previous_item, QItemSelectionModel.Select )
+        # Attempt to select the row
+        rows  = self.mediafiles.rowCount()
+        self.log.append( 'Rows: {}, removed row: {}'.format( rows, row ) )
+        if rows > 0:
+            self.selectRow( row )
 
     def update_preview(self):
         # Update preview
