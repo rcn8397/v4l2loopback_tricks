@@ -489,6 +489,7 @@ class VidStreamer( QWidget ):
         model = self.playlist.selectionModel()
         item  = self.mediafiles.index( row, 0 )
         model.select( item, QItemSelectionModel.Select )
+        self.update_preview()
 
     def remove( self ):
         self.log.append( 'remove' )
@@ -502,6 +503,7 @@ class VidStreamer( QWidget ):
             # Unload the media if its streaming       
             media = sources[ row ]
             if media == self.selected_media:
+                self.selected_media = None
                 self.stop()
 
             # remove it 
@@ -510,8 +512,14 @@ class VidStreamer( QWidget ):
         # Attempt to select the row
         rows  = self.mediafiles.rowCount()
         self.log.append( 'Rows: {}, removed row: {}'.format( rows, row ) )
-        if rows > 0:
+        if rows > 0 and row < rows:
+            self.selected_media = sources[ row ]
             self.selectRow( row )
+        elif rows > 0 and row == rows:
+            self.selected_media = sources[ row-1 ]
+            self.selectRow( row-1 )            
+        else:
+            self.preview.clear()
 
     def update_preview(self):
         # Update preview
