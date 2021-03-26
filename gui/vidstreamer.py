@@ -147,8 +147,6 @@ class FileDialog(QWidget):
 
         dialog()
 
-        self.show()
-
     def openDirNameDialog( self ):
         options = QFileDialog.Options()
         options |= QFileDialog.DontUseNativeDialog
