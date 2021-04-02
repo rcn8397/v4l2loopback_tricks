@@ -66,7 +66,7 @@ class SettingsManager( object ):
             print( k, value, type( value ) )
 
 
-icon_path   = 'icons/collections/basics'
+icon_path   = 'resources'
 cache       = os.path.expanduser( '~/.v4l2tricks' )
 cached_path = lambda media : os.path.join( cache, os.path.basename( media ) )
 config_path = cached_path( 'vidstreamer.ini' )
