@@ -2,6 +2,7 @@
 import os
 import sys
 import time
+import shutil
 
 from PyQt5.QtCore import *
 from PyQt5.QtGui import *
@@ -300,7 +301,11 @@ class VidStreamer( QWidget ):
         self.previewact.triggered.connect( self.toggle_preview )
         editmenu.addAction( self.previewact )
 
-
+        self.cleanact = QAction( QIcon(), '&Clean Cache', self )
+        self.cleanact.setStatusTip( 'Clean up cache files' )
+        self.cleanact.triggered.connect( self.cleancache )
+        editmenu.addAction( self.cleanact )
+        
         # Video Devices
         devmenu  = editmenu.addMenu( '&Device' )
 
@@ -663,7 +668,16 @@ class VidStreamer( QWidget ):
             self.log_shown = True
             self.togglelog.setText( 'Hide &Log' )
             self.log.show()
-            
+
+    def cleancache( self ):
+        cache_objects = os.listdir( cache )
+        num = len( cache_objects )
+        for node in cache_objects:
+            self.log.append( 'Removing {}'.format( node ) )
+            path = os.path.join( cache, node )
+            shutil.rmtree( path )
+        self.log.append( 'Cleaned {} cache objects'.format( num ) )
+                
     def closeEvent( self, event ):
         self.thread_clean_up()
         super().closeEvent( event )
