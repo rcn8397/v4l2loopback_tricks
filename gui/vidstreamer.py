@@ -66,10 +66,11 @@ class SettingsManager( object ):
             print( k, value, type( value ) )
 
 
-icon_path   = 'resources'
-cache       = os.path.expanduser( '~/.v4l2tricks' )
-cached_path = lambda media : os.path.join( cache, os.path.basename( media ) )
-config_path = cached_path( 'vidstreamer.ini' )
+icon_path    = 'resources'
+icon_btn_res = 36
+cache        = os.path.expanduser( '~/.v4l2tricks' )
+cached_path  = lambda media : os.path.join( cache, os.path.basename( media ) )
+config_path  = cached_path( 'vidstreamer.ini' )
 
 #settings    = SettingsManager( config_path )
 #settings.dump()
@@ -366,18 +367,18 @@ class VidStreamer( QWidget ):
         # Play list
         self.find_btn    = QPushButton( self, objectName='find_btn' )
         self.find_btn.setIcon( QIcon( os.path.join( icon_path, 'folder.svg') ) )
-        self.find_btn.setIconSize( QSize( 24, 24 ) )
+        self.find_btn.setIconSize( QSize( icon_btn_res, icon_btn_res ) )
         
         self.find_btn.clicked.connect( self.find )
 
         self.add_btn = QPushButton( self, objectName='add_btn' )
-        self.add_btn.setIcon( QIcon( os.path.join( icon_path, 'plus.svg' ) ) )
-        self.add_btn.setIconSize( QSize( 24, 24 ) )
+        self.add_btn.setIcon( QIcon( os.path.join( icon_path, 'addfile.svg' ) ) )
+        self.add_btn.setIconSize( QSize( icon_btn_res, icon_btn_res ) )
         self.add_btn.clicked.connect( self.add )
 
         self.rm_btn = QPushButton( self, objectName='remove_btn' )
-        self.rm_btn.setIcon( QIcon( os.path.join( icon_path, 'minus.svg' ) ) )
-        self.rm_btn.setIconSize( QSize( 24, 24 ) )
+        self.rm_btn.setIcon( QIcon( os.path.join( icon_path, 'rmfile.svg' ) ) )
+        self.rm_btn.setIconSize( QSize( icon_btn_res, icon_btn_res ) )
         self.rm_btn.clicked.connect( self.remove )
 
         hspacer = QSpacerItem( self.rm_btn.pos().x() + 10, self.rm_btn.pos().y(), QSizePolicy.Expanding, QSizePolicy.Minimum )
