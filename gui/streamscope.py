@@ -17,9 +17,20 @@ get_video_devices = lambda : [ dev for dev in os.listdir('/dev') if 'video' in d
 
 class StreamScope( QWidget ):
     resize_signal  = pyqtSignal(int)
-    resolutions    = [ '640x480',
-                       '720x480',
-                       '1280x720' ]
+    resolutions    = [
+        '320x200',  # CGA
+        '320x240',  # QVGA
+        '480x320',  # HVGA
+        '640x480',  # VGA
+        '720x480',  # 480p
+        '800x480',  # WVGA
+        '854x480',  # WVGA (NTSC+)
+        '1024x576', # PAL+
+        '1024x768', # XGA
+        '1280x720', # HD
+        '1280x768', # WXGA
+        'Elastic'
+    ]
     def __init__( self ):
         super().__init__()
         self.title_bar_h   = self.style().pixelMetric( QStyle.PM_TitleBarHeight )
@@ -38,7 +49,7 @@ class StreamScope( QWidget ):
         self.stream_thread.started.connect( self.streamer.long_running )
 
         self.setWindowTitle( self.__class__.__name__ )
-        self.setGeometry( 0, 0, 640, 500 )
+        self.setGeometry( 0, 0, self.res_w, self.res_h )
 
         self.init_layout()
 
@@ -118,8 +129,8 @@ class StreamScope( QWidget ):
         }
         '''
         self.viewfinder.setStyleSheet( style )
-        self.viewfinder.setMinimumWidth( self.res_w )
-        self.viewfinder.setMinimumHeight( self.res_h )
+        self.viewfinder.setMinimumWidth( 0 )
+        self.viewfinder.setMinimumHeight( 0 )
         self.viewfinder.setGeometry( QRect( self.frame.pos().x(), 0, self.res_w, self.res_h ) )
         layout1.addWidget( self.viewfinder )
         layout1.addWidget( self.frame )
@@ -150,13 +161,26 @@ class StreamScope( QWidget ):
 
     def resolutionChanged( self, text ):
         self.stop()
-        res = text.split( 'x' )
-        self.res_w = int( res[0] )
-        self.res_h = int( res[1] )
-        self.viewfinder.setMinimumWidth( self.res_w )
-        self.viewfinder.setMinimumHeight( self.res_h )
-        self.viewfinder.setGeometry( QRect( self.frame.pos().x(), 0, self.res_w, self.res_h ) )
-        self.setGeometry( QRect( self.pos().x(), self.pos().y(), self.res_w, self.res_h ) )
+        
+        if text == 'Elastic':
+            min_w = 0
+            min_h = 0
+            win_w = self.viewfinder.width()
+            win_h = self.viewfinder.height()
+            
+        else:
+            res = text.split( 'x' )
+            self.res_w = int( res[0] )
+            self.res_h = int( res[1] )
+            min_w = self.res_w
+            min_h = self.res_h
+            win_w = self.res_w
+            win_h = self.res_h
+            
+        self.viewfinder.setMinimumWidth( min_w )
+        self.viewfinder.setMinimumHeight( min_h )
+        self.viewfinder.setGeometry( QRect( self.frame.pos().x(), 0, win_w, win_h ) )
+        self.setGeometry( QRect( self.pos().x(), self.pos().y(), win_w, win_h ) )
         self.adjustSize()
 
     def debug_frustum( self ):
