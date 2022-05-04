@@ -22,7 +22,7 @@ Or
     
 ## v4l2loopback
 ### Ubuntu/Debian install:
-    sudo apt install v4l2loopback-dkms
+    sudo apt install v4l2loopback-dkms v4l2loopback-utils
 
 ### Configure the kernel module
    

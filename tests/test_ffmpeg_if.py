@@ -23,13 +23,23 @@ def test_thumbnail():
 
     ffmpeg_if.jpgs2gif( 'preview_%03d.jpg' )
 
+def test_gif():
+    print( 'Generating gif' )
+    duration = ffmpeg_if.probe_duration( m )
+    print( 'duration: {}'.format( duration ) )
+    timestamp = lambda duration, step: ( ( duration/step ) - ( 0.5 * ( duration * 0.25 ) ) )
+
+    ffmpeg_if.generate_gif( m, 'test.gif', time = timestamp( duration, 3 ), duration =3 )
+    
 def test_probe():
     print( ffmpeg_if.probe( m ) )
     print( ffmpeg_if.probe_duration( m ) )
+
     
 def main():
     test_probe()
     test_thumbnail()
+    test_gif()
     
 if __name__ == '__main__':
     main()

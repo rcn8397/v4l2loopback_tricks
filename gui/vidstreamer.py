@@ -12,7 +12,7 @@ from PyQt5.QtWidgets import *
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from v4l2tricks.stream    import stream_media
-from v4l2tricks.ffmpeg_if import generate_thumbnail, jpgs2gif, probe_duration
+from v4l2tricks.ffmpeg_if import generate_thumbnail, jpgs2gif, probe_duration, probe, deep_probe
 from v4l2tricks.supported import MediaContainers
 from v4l2tricks           import fsutil
 from gui.wait             import QtWaitSpinner
@@ -29,6 +29,7 @@ get_video_devices = lambda : [ dev for dev in os.listdir('/dev') if 'video' in d
 # Media extensions
 containers      = MediaContainers()
 #media_types     = containers.extensions()
+exclude_types = {'.part', }
 media_types = {'.flv', '.mp4', '.webm', '.mov', '.m4a', '.ogg', '.mkv', '.3gp', '.asf', '.wma', '.mpg', '.divx', '.mpeg', '.wmv', '.vob', '.avi'}
 media_types_str = ' '.join( '*{}'.format( t ) for t in media_types )
 
@@ -733,7 +734,7 @@ class SourceUpdater( QObject ):
                 fcnt += 1
                 self.sig_msg.emit( 'checking root={}, file={}'.format(root, fname ) )
                 self.sig_step.emit( 0, fcnt )
-                if is_ext( fname.lower(), media_types ):
+                if is_ext( fname.lower(), media_types ) and not is_ext( fname.lower(), exclude_types ):
                     path = os.path.join( root, fname )
                     sources.append( path )
                     if self.__preview: create_gif( path )
@@ -818,6 +819,9 @@ class MediaStreamer( QObject ):
             print( 'Could not detect DISPLAY variable (normally :0 or :1)' )
             pass
 
+
+        print( 'Video Data: ', probe( self.path ) )
+        #deep_probe( self.path )
         stream = stream_media( self.path,
                                self.device,
                                True )

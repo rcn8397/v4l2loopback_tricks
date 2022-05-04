@@ -57,7 +57,18 @@ class StreamProcess( object ):
         if verbose: print( '{0}: w={1}, h={2}'.format( fname, width, height ) )
 
         # Create ffmpeg interface process
-        stream = ffmpeg.input( fname, re=None, ).output( device, f='v4l2' )
+        stream = ffmpeg.input(
+            fname,
+            re=None,
+            hide_banner=None,
+            loglevel='error'
+        ).output(
+            device,
+            vf = 'scale={}:-1'.format( width ),#, height),
+            pix_fmt='yuv420p',
+            #pix_fmt='yuyv422',
+            f='v4l2'
+        )
         if verbose: print( stream.compile() )
 
 
@@ -182,7 +193,9 @@ class DesktopStreamProcess( StreamProcess ):
         .input( '{0}.0+{1},{2}'.format( display, x, y ),
                 s='{0}x{1}'.format( w, h ),
                 #f='x11grab' ).hflip()
-                f='x11grab' )
+                f='x11grab',
+                hide_banner=None,
+                loglevel='error' )
         .output( device,
                  #vf = 'format=pix_fmts=yuv420p',
                  #pix_fmt='yuv420p',
@@ -229,7 +242,9 @@ class DesktopScopeProcess( StreamProcess ):
         ffmpeg
         .input( '{0}.0+{1},{2}'.format( display, x, y ),
                 s='{0}x{1}'.format( w, h ),
-                f='x11grab' ).hflip()
+                f='x11grab',
+                hide_banner=None,
+                loglevel='error').hflip()
         .output( device,
                  pix_fmt='yuyv422',
                  f='v4l2'  )
@@ -256,7 +271,7 @@ def jpgs2gif( pattern, out='out.gif', framerate = 2 ): #scale='360x240', ):
     '''
     out, err = (
         ffmpeg
-        .input( pattern, framerate=framerate, format='image2' )
+        .input( pattern, framerate=framerate, format='image2', hide_banner=None, loglevel='error' )
         #.filter( 'scale', scale )
         .output( out)
         .overwrite_output()
@@ -265,7 +280,7 @@ def jpgs2gif( pattern, out='out.gif', framerate = 2 ): #scale='360x240', ):
     return out
     
         
-def generate_thumbnail(in_filename, out_filename, time=0.1, width=360):
+def generate_thumbnail(in_filename, out_filename, time=0.1, width=360, stdout = False, stderr = False):
     '''
     Directly from ffmpeg-python examples
     https://github.com/kkroening/ffmpeg-python/blob/master/examples/get_video_thumbnail.py
@@ -273,16 +288,50 @@ def generate_thumbnail(in_filename, out_filename, time=0.1, width=360):
     try:
         (
             ffmpeg
-            .input(in_filename, ss=time)
+            .input(in_filename, ss=time, hide_banner=None, loglevel='error')
             .filter('scale', width, -1)
             .output(out_filename, vframes=1)
             .overwrite_output()
-            .run(capture_stdout=True, capture_stderr=True)
+            .run(capture_stdout=stdout, capture_stderr=stderr)
         )
     except ffmpeg.Error as e:
         print( 'borked' )
         return (str( e ) )#e.stderr.decode(), file=sys.stderr)
 
+def generate_gif(in_filename, out_filename='out.gif', time=0.1, duration = 2.5, width=360, stdout = False, stderr = False):
+    '''
+    ffmpeg -ss 61.0 -t 2.5 -i input.mp4 -filter_complex "[0:v] palettegen" palette.png
+    ffmpeg -ss 61.0 -t 2.5 -i input.mp4 -i palette.png -filter_complex "[0:v][1:v] paletteuse" out.gif
+    '''
+    if not out_filename.endswith( '.gif' ):
+        out_filename += '.gif'
+        
+    # Palette generation, split paletteuse
+    split = (
+        ffmpeg
+        .input(in_filename, ss=time, t=duration, hide_banner=None, loglevel='error')
+        .filter( 'scale', 512, -1 )
+        .split()
+    )
+
+    palette = (
+        split[0]
+        .filter( 'palettegen' )
+    )
+
+    try:
+        (
+            ffmpeg
+            .filter( [split[1], palette], 'paletteuse' )
+            .output( out_filename )
+            .overwrite_output()
+            .run()
+        )
+    except ffmpeg.Error as e:
+        print( 'borked' )
+        return (str( e ) ) #e.stderr.decode(), file=sys.stderr)
+
+    
 def probe_duration( fname ):
     '''
     Retrieve the media files duration
@@ -298,6 +347,13 @@ def probe( fname ):
     height = int(video_info['height'])
     num_frames = int(video_info['nb_frames'])
     return width, height, num_frames
+
+def deep_probe( fname ):
+    probe = ffmpeg.probe( fname )
+    video_info = next(s for s in probe['streams'] if s['codec_type'] == 'video')
+    import pdb
+    pdb.set_trace()
+    
 
 def test_stream_media( fname, dev = '/dev/video20' ):
     '''
@@ -338,7 +394,8 @@ def create_test_src(path='./testsrc.mp4', duration = 30):
     process = (
         ffmpeg
         .input( 'testsrc', f='lavfi', t= duration  )
-        .output( path, pix_fmt='yuv420p' )
+        .output( path,
+                 pix_fmt='yuv420p' )
         .run_async( pipe_stdout = True, pipe_stdin = False)
         )
     out, err = process.communicate()
