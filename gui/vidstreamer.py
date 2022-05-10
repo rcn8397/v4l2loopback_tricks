@@ -3,10 +3,12 @@ import os
 import sys
 import time
 import shutil
+import pdb
 
 from PyQt5.QtCore import *
 from PyQt5.QtGui import *
 from PyQt5.QtWidgets import *
+from grids import Gallery
 
 # Setup imports from module
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -91,6 +93,7 @@ def create_icon( path ):
     if not os.path.exists( outpath ):
         ts = duration * 0.10
         generate_thumbnail( path, outpath, time = ts )
+    return outpath
 
 def create_gif( path, increments = 4, overwrite = False ):
     '''
@@ -119,7 +122,7 @@ def create_gif( path, increments = 4, overwrite = False ):
     pattern   = os.path.join( outdir, 'preview_%03d.jpg' )                              
     if not os.path.exists( outfile ) or overwrite:
         jpgs2gif( pattern, out = outfile )
-
+    return outfile
 
 
 class FileDialog(QWidget):
@@ -268,13 +271,13 @@ class VidStreamer( QWidget ):
 
         # Add media
         addAct = QAction( QIcon(), '&Add media', self )
-        addAct.setStatusTip( 'Add media to playlist' )
+        addAct.setStatusTip( 'Add media' )
         addAct.triggered.connect( self.add )
         filemenu.addAction( addAct )
 
         # Remove media
         rmAct = QAction( QIcon(), '&Remove media', self )
-        rmAct.setStatusTip( 'Remove media from playlist' )
+        rmAct.setStatusTip( 'Remove media' )
         rmAct.triggered.connect( self.remove )
         filemenu.addAction( rmAct )
 
@@ -296,11 +299,6 @@ class VidStreamer( QWidget ):
         self.iconact.setStatusTip( 'Disable/Enable Icons' )
         self.iconact.triggered.connect( self.toggle_icons )
         editmenu.addAction( self.iconact )
-
-        self.previewact = QAction( QIcon(), 'Disable &Preview', self )
-        self.previewact.setStatusTip( 'Disable/Enable Preview' )
-        self.previewact.triggered.connect( self.toggle_preview )
-        editmenu.addAction( self.previewact )
 
         self.cleanact = QAction( QIcon(), '&Clean Cache', self )
         self.cleanact.setStatusTip( 'Clean up cache files' )
@@ -332,7 +330,7 @@ class VidStreamer( QWidget ):
     def init_layout( self ):
         layout_main = QVBoxLayout()
         layout_sxs  = QHBoxLayout()
-        layout_list = QVBoxLayout()
+        layout_grid = QVBoxLayout()
         layout_lbtn = QHBoxLayout()
         layout_ctrl = QHBoxLayout()
         layout_mntr = QVBoxLayout()
@@ -395,70 +393,52 @@ class VidStreamer( QWidget ):
         layout_lbtn.addItem( hspacer )
         layout_lbtn.setContentsMargins( 0,0,0,0)
 
-        self.playlist   = QListView( self )
-        self.mediafiles = QStandardItemModel()
-        self.playlist.setModel( self.mediafiles )
-        self.playlist.clicked.connect( self.selectionChanged )
+        #----------------
+        # Gallery View
+        #---------------        
+        self.scrollArea = QScrollArea()
+        self.gallery = Gallery()
+        self.scrollArea.setWidgetResizable( True )
+        self.scrollArea.setWidget( self.gallery )
 
-        self.playlist_busy = QtWaitSpinner( self.playlist )
+
+        #### test
+        img = 'test.gif'
+        for x in range( 30 ):
+            self.gallery.append( img )
+        self.gallery.refresh()
+
+        self.playlist_busy = QtWaitSpinner( self.gallery )
+        
         self.playlist_busy.trailFadePercent = 20
         self.playlist_busy.minTrailOpacity = 50
         self.playlist_busy.setColor( QColor( Qt.black ) )
 
-        layout_list.addWidget( self.playlist )
-        layout_list.addLayout( layout_lbtn )
-
-        self.nowplaying = QLabel( self, objectName='now_playing' )
-        self.preview    = QLabel( self, objectName='preview' )
-        style='''
-        QLabel{
-        background-color: black;
-        }
-        QLabel#now_playing{
-        border:5px solid cyan;
-        }
-        QLabel#preview{
-        border:5px solid green;
-        }
-        '''
-        self.nowplaying.setStyleSheet( style )
-        self.nowplaying.setFixedHeight( 240 )
-        self.nowplaying.setFixedWidth( 360 )
-
-        self.preview.setStyleSheet( style )
-        self.preview.setFixedHeight( 240 )
-        self.preview.setFixedWidth( 360 )
-
-        layout_mntr.addWidget( self.nowplaying )
-        layout_mntr.addWidget( self.preview )
+        layout_grid.addWidget( self.scrollArea )
+        layout_grid.addLayout( layout_lbtn )
 
         # Log output
         self.log = QTextEdit()
 
         # Add layouts to main layout
-        layout_sxs.addLayout( layout_list )
+        layout_sxs.addLayout( layout_grid )
+        
         layout_sxs.addLayout( layout_mntr )
         layout_main.addLayout( layout_menu )
         layout_main.addLayout( layout_sxs )
         layout_main.addWidget( self.frame )
         layout_main.addWidget( self.log )
+
         self.setLayout( layout_main )
 
 
-    def build_playlist( self ):
-        ''' Build the playlist '''
-        self.log.append( 'Building playlist' )
-        self.mediafiles.clear()
-
-        for path in sources:
+    def each_source( self ):
+        for i, path in enumerate( sources ):
             icon = os.path.join( cached_path( path ), 'icon.jpg' )
             if not os.path.exists( icon ):
                 icon = ''
-            self.new_playlist_item( path, icon )
-
-    def new_playlist_item( self, s, icon = '' ):
-        item = QStandardItem( QIcon( icon ), os.path.basename( s ) )
-        self.mediafiles.appendRow( item )
+            yield( i, path, icon )
+        
 
     def add( self ):
         self.playlist_busy.start()
@@ -474,71 +454,37 @@ class VidStreamer( QWidget ):
 
         # This could take some time... it might need to be threaded after all
         for path in add.paths:
-            create_icon( path )
+            self.log.append( 'Creating icon for: {}'.format( path ) )
+            icon = create_icon( path )
+            
+            # Add the media to the gallery
+            self.log.append( 'Appending {} to the gallery'.format( icon ) )
+            self.gallery.append( icon )
 
-        self.build_playlist()
-
-        # Default to the item just added
-        rows  = self.mediafiles.rowCount()
-        item  = self.mediafiles.index( rows-1, 0 )
-        model = self.playlist.selectionModel()
-        model.select( item, QItemSelectionModel.Select)
+            # Lazy select the last file
+            self.selected_media = path
+            
+        # Refresh the gallery
+        self.gallery.refresh()
 
         # Update the selected media
-        self.selected_media = sources[ rows- 1 ] #item.data()
         self.log.append( 'Queued: {}'.format( self.selected_media ) )
         self.streamer.path = self.selected_media
 
         # Create a preview of the item selected.
         create_gif( self.selected_media )
-        self.update_preview()
         self.playlist_busy.stop()
 
-    def selectRow( self, row ):
-        model = self.playlist.selectionModel()
-        item  = self.mediafiles.index( row, 0 )
-        model.select( item, QItemSelectionModel.Select )
-        self.update_preview()
+
+    def selectMedia( self, btn ):
+        pass
+
 
     def remove( self ):
         self.log.append( 'remove' )
-        model = self.playlist.model()
-        for item in self.playlist.selectedIndexes():
-            row = item.row()
-            self.log.append( 'item: {}'.format( item ) )
-            model.removeRow( row )
-            self.log.append( 'Removed row: {}'.format( row ) )
-            
-            # Unload the media if its streaming       
-            media = sources[ row ]
-            if media == self.selected_media:
-                self.selected_media = None
-                self.stop()
+        # Get the selected medai button and remove it from the galler and sources list
+#        sources.pop( row )
 
-            # remove it 
-            sources.pop( row )
-
-        # Attempt to select the row
-        rows  = self.mediafiles.rowCount()
-        self.log.append( 'Rows: {}, removed row: {}'.format( rows, row ) )
-        if rows > 0 and row < rows:
-            self.selected_media = sources[ row ]
-            self.selectRow( row )
-        elif rows > 0 and row == rows:
-            self.selected_media = sources[ row-1 ]
-            self.selectRow( row-1 )            
-        else:
-            self.preview.clear()
-
-    def update_preview(self):
-        # Update preview
-        outdir  = cached_path( self.selected_media )
-        gif     = '{}.gif'.format( os.path.basename( self.selected_media ) )
-        preview = os.path.join( outdir, gif )
-        self.log.append( 'Looking for preview: {}, {}'.format( preview, os.path.exists( preview ) ) )
-        movie = QMovie( preview )
-        self.preview.setMovie( movie )
-        movie.start()
 
     def find( self ):
         folder = FileDialog('Opend')
@@ -588,11 +534,6 @@ class VidStreamer( QWidget ):
 
         # Update the list view
         self.build_playlist()
-
-        # Default to the zeroth item
-        item = self.mediafiles.index( 0, 0 )
-        model = self.playlist.selectionModel()
-        model.select( item, QItemSelectionModel.Select)
 
         # Update the selected media
         if len( sources ) > 0:
