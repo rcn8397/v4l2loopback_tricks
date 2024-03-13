@@ -18,25 +18,30 @@ get_video_devices = lambda : [ dev for dev in os.listdir('/dev') if 'video' in d
 class StreamScope( QWidget ):
     resize_signal  = pyqtSignal(int)
     resolutions    = [
-        '320x200',  # CGA
-        '320x240',  # QVGA
-        '480x320',  # HVGA
-        '640x480',  # VGA
-        '720x480',  # 480p
-        '800x480',  # WVGA
-        '854x480',  # WVGA (NTSC+)
-        '1024x576', # PAL+
-        '1024x768', # XGA
-        '1280x720', # HD
-        '1280x768', # WXGA
-        'Elastic'
+        '320x200',  # CGA           0
+        '320x240',  # QVGA          1
+        '480x320',  # HVGA          2
+        '640x480',  # VGA           3
+        '720x480',  # 480p          4
+        '800x480',  # WVGA          5
+        '854x480',  # WVGA (NTSC+)  6
+        '1024x576', # PAL+          7
+        '1024x768', # XGA           8
+        '1280x720', # HD            9
+        '1280x768', # WXGA          10
+        'Elastic',  # Elastic       11
     ]
+    
     def __init__( self ):
         super().__init__()
         self.title_bar_h   = self.style().pixelMetric( QStyle.PM_TitleBarHeight )
         self.devices       = get_video_devices()
         self.device        = '/dev/{0}'.format( self.devices[0] )
-        res                = self.resolutions[0].split( 'x' )
+
+        # Setup the default resolution for the app
+        use_resolution = 4
+        self.resolution_name = self.resolutions[ use_resolution ]
+        res                = self.resolutions[ use_resolution ].split( 'x' )
         self.res_w         = int( res[0])
         self.res_h         = int( res[1])
         self.stream_thread = QThread(parent=self)
@@ -79,7 +84,7 @@ class StreamScope( QWidget ):
         for res in self.resolutions:
             resolution.addItem( res )
         resolution.activated[str].connect( self.resolutionChanged )
-
+        resolution.setCurrentIndex( self.resolutions.index(self.resolution_name ) )
 
         # Buttons
         self.stream_btn = QPushButton( self, objectName='stream_btn' )
@@ -115,7 +120,7 @@ class StreamScope( QWidget ):
         layout2.addWidget( resolution )
         layout2.addWidget( combo )
         self.frame.setLayout( layout2 )
-        self.frame.setFixedHeight( self.frame.height()*1.5 )
+        self.frame.setFixedHeight( 40 )
 
         self.viewfinder = QLabel(self, objectName='view_finder')
         style='''
