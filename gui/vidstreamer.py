@@ -81,6 +81,10 @@ config_path  = cached_path( 'vidstreamer.ini' )
 
 sources = list()
 
+def get_icon_path( path ):
+    outdir = cached_path( path )
+    return os.path.join( outdir, 'icon.jpg' )
+
 def create_icon( path ):
     ''' Create an icon of the media at <path> '''
     duration = probe_duration( path )
@@ -400,13 +404,14 @@ class VidStreamer( QWidget ):
         self.gallery = Gallery()
         self.scrollArea.setWidgetResizable( True )
         self.scrollArea.setWidget( self.gallery )
+        self.scrollArea.setFixedWidth( 600 )
 
 
         #### test
-        img = 'test.gif'
-        for x in range( 30 ):
-            self.gallery.append( img )
-        self.gallery.refresh()
+#        img = 'test.gif'
+#        for x in range( 30 ):
+#            self.gallery.append( img )
+#        self.gallery.refresh()
 
         self.playlist_busy = QtWaitSpinner( self.gallery )
         
@@ -431,14 +436,6 @@ class VidStreamer( QWidget ):
 
         self.setLayout( layout_main )
 
-
-    def each_source( self ):
-        for i, path in enumerate( sources ):
-            icon = os.path.join( cached_path( path ), 'icon.jpg' )
-            if not os.path.exists( icon ):
-                icon = ''
-            yield( i, path, icon )
-        
 
     def add( self ):
         self.playlist_busy.start()
@@ -533,7 +530,13 @@ class VidStreamer( QWidget ):
         self.rm_btn.setEnabled( True )
 
         # Update the list view
-        self.build_playlist()
+        for path in sources:
+            self.log.append( 'Appending gallery with {}'.format( path ) )
+            icon = get_icon_path( path )
+            self.gallery.append( icon )
+            
+
+        self.gallery.refresh()
 
         # Update the selected media
         if len( sources ) > 0:
@@ -541,8 +544,6 @@ class VidStreamer( QWidget ):
             self.log.append( 'Queued: {}'.format( self.selected_media ) )
             self.streamer.path = self.selected_media
 
-            self.update_preview()
-            
         # Clean up the thread
         for thread, work in self.__updaters:
             thread.quit()

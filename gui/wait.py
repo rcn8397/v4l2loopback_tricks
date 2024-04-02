@@ -163,15 +163,16 @@ class QtWaitSpinner(QWidget):
         
     def updatePosition( self ):
         if self.parentWidget() and self._centerOnParent:
-            self.move( self.parentWidget().width() / 2 - self.width() / 2,
-                       self.parentWidget().height() / 2 - self.height() / 2 )
+            self.move( int( self.parentWidget().width() / 2 - self.width() / 2 ),
+                       int( self.parentWidget().height() / 2 - self.height() / 2 ) )
 
     def updateSize( self ):
         size = ( self._innerRadius + self._lineLength ) * 2
         self.setFixedSize( size, size )
 
     def updateTimer( self ):
-        self._timer.setInterval( 1000 / ( self._numberOfLines * self._revolutionsPerSecond ) )
+        interval = 1000 / ( self._numberOfLines * self._revolutionsPerSecond )
+        self._timer.setInterval( int( interval ) )
 
     
 

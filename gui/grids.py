@@ -10,12 +10,23 @@ from PyQt5.QtGui import (QPixmap, QPainter)
 from PyQt5.QtCore import (Qt, QSize,pyqtSignal, QRect)
 
 class MediaButton(QAbstractButton):
-    def __init__(self, pixmap, parent=None):
+    def __init__(self, pixmap, parent=None, width=200, height=112 ):
         super(MediaButton, self).__init__(parent)
         self.pixmap = QPixmap(pixmap)
+        self.setSize( width, height )
 
+    def setSize( self, w, h ):
+        self.setWidth( w )
+        self.setHeight( h )
+        
+    def setWidth( self, w ):
+        self.w = w
+
+    def setHeight( self, h ):
+        self.h = h
+        
     def sizeHint(self):
-        return QSize(100, 200)
+        return QSize(self.w, self.h)
 
     def paintEvent(self, event):
         painter = QPainter(self)
@@ -28,6 +39,14 @@ class MediaButton(QAbstractButton):
     def pic_change(self, pixmap):
         self.pixmap = QPixmap(pixmap)
 
+    @property
+    def path( self ):
+        return self._media_path
+
+    @path.setter
+    def path( self, value ):
+        self._media_path = value
+        
 class Gallery( QWidget ):
     def __init__( self, parent = None, objectName = None ):
         super( Gallery, self ).__init__( parent, objectName = objectName )
@@ -50,9 +69,9 @@ class Gallery( QWidget ):
     def style( self, style ):
         self.setStyleSheet( style )
 
-    def append( self, img ):
+    def append( self, img, media = None ):
         button = MediaButton( img )
-        #self.layout.addWidget( button )
+        button.path = media
         self.buttons.append( button )
 
     def clear( self ):
