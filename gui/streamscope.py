@@ -80,11 +80,11 @@ class StreamScope( QWidget ):
                self.device = '/dev/{0}'.format( device )
         combo.activated[str].connect( self.comboChanged )
 
-        resolution = QComboBox( self )
+        self.resolution = QComboBox( self )
         for res in self.resolutions:
-            resolution.addItem( res )
-        resolution.activated[str].connect( self.resolutionChanged )
-        resolution.setCurrentIndex( self.resolutions.index(self.resolution_name ) )
+            self.resolution.addItem( res )
+        self.resolution.activated[str].connect( self.resolutionChanged )
+        self.resolution.setCurrentIndex( self.resolutions.index(self.resolution_name ) )
 
         # Buttons
         self.stream_btn = QPushButton( self, objectName='stream_btn' )
@@ -117,7 +117,7 @@ class StreamScope( QWidget ):
 
         layout2.addWidget( self.stream_btn )
         layout2.addWidget( self.stop_btn )
-        layout2.addWidget( resolution )
+        layout2.addWidget( self.resolution )
         layout2.addWidget( combo )
         self.frame.setLayout( layout2 )
         self.frame.setFixedHeight( 40 )
@@ -137,6 +137,7 @@ class StreamScope( QWidget ):
         self.viewfinder.setMinimumWidth( 0 )
         self.viewfinder.setMinimumHeight( 0 )
         self.viewfinder.setGeometry( QRect( self.frame.pos().x(), 0, self.res_w, self.res_h ) )
+
         layout1.addWidget( self.viewfinder )
         layout1.addWidget( self.frame )
         layout1.setSpacing(0)
@@ -166,12 +167,13 @@ class StreamScope( QWidget ):
 
     def resolutionChanged( self, text ):
         self.stop()
-        
         if text == 'Elastic':
             min_w = 0
             min_h = 0
             win_w = self.viewfinder.width()
             win_h = self.viewfinder.height()
+            self.res_w = win_w
+            self.res_h = win_h
             
         else:
             res = text.split( 'x' )
@@ -187,20 +189,28 @@ class StreamScope( QWidget ):
         self.viewfinder.setGeometry( QRect( self.frame.pos().x(), 0, win_w, win_h ) )
         self.setGeometry( QRect( self.pos().x(), self.pos().y(), win_w, win_h ) )
         self.adjustSize()
+        #self.debug_frustum
 
     def debug_frustum( self ):
         print( 'Window: {0}, {1}x{2}'.format( self.pos(), self.width(), self.height() ) )
         print( 'Status: {0}'.format( self.title_bar_h ) )
-        print( 'Scope:  {0}, {1}x{2}'.format( self.viewfinder.pos(),self.viewfinder.width(), self.viewfinder.height() ) )
+        print( 'ViewFinder: {0}, {1}x{2}'.format( self.viewfinder.pos(),self.viewfinder.width(), self.viewfinder.height() ) )
+        print( 'Streamer: {0}:{1}, {2}x{3}'.format( self.streamer.x, self.streamer.y, self.streamer.width, self.streamer.height ) )
         print( 'Device: {0}'.format( self.device ) )
 
     def update_frustum( self ):
-        #self.debug_frustum()
         self.streamer.x = self.pos().x() + self.viewfinder.pos().x() + 0
         self.streamer.y = self.pos().y() + self.viewfinder.pos().y() + self.title_bar_h + 5
-        self.streamer.width  = self.viewfinder.width()
-        self.streamer.height = self.viewfinder.height()
+
+        if self.resolution.currentText() == 'Elastic':
+            self.streamer.width  = self.viewfinder.width()
+            self.streamer.height = self.viewfinder.height()
+        else:
+            self.streamer.width  = self.res_w
+            self.streamer.height = self.res_h
+
         self.streamer.device = self.device
+        #self.debug_frustum()
 
     def moveEvent( self, event ):
         self.stop()
