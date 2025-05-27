@@ -19,19 +19,24 @@ install_package v4l2loopback-utils
 install_package ffmpeg
 #install_package python3-pyqt5
 
+VIRTCAM_MODPROBE_D=/etc/modprobe.d/virtualcam.conf
+VIRTCAM_MODPROBE_LOAD_D=/etc/modules-load.d/virtualcam.conf
+
 echo "Install Python dependencies"
 python3 -m pip install ffmpeg-python
 python3 -m pip install pyqt5
 
 echo "Setting up video loopback"
-if [ ! -f /etc/modprobe.d/virtualcam.conf ]; then
+rm -f VIRTCAM_MODPROBE_D
+if [ ! -f VIRTCAM_MODPROBE_D  ]; then
     echo options v4l2loopback devices=1 video_nr=20 \
-    card_label="X920" exclusive_caps=1 | sudo tee -a \
-    /etc/modprobe.d/virtualcam.conf
+         card_label="X920" exclusive_caps=1 | sudo tee -a \
+    VIRTCAM_MODPROBE_D                                                   
 fi
 
-if [ ! -f /etc/modules-load.d/virtualcam.conf ]; then
-    echo v4l2loopback | sudo tee -a /etc/modules-load.d/virtualcam.conf
+rm -f VIRTCAM_MODPROBE_LOAD_D
+if [ ! -f VIRTCAM_MODPROBE_LOAD_D ]; then
+    echo v4l2loopback | sudo tee -a VIRTCAM_MODPROBE_LOAD_D
 fi
 
 sudo modprobe -r v4l2loopback
